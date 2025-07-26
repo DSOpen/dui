@@ -103,15 +103,6 @@
         },
         //#region ------------------- SignalBasedReactiveDataLink -----------
         uiRender: uiRender,
-        getSignalScopes: function (target, val = null) {
-            return dui.saveSignalScope(target, val);
-        },
-        reactiveSignal: function (obj) {
-            return reactiveSignalObject(obj, this);
-        },
-        signalToRaw: function (obj) {
-            return toSignalRaw(obj, this.dataSignalStore);
-        },
         //#endregion ---------------- SignalBasedReactiveDataLink -----------
     };
 
@@ -139,22 +130,20 @@
         });
     };
 
-    dui.ojectCount = 0;
-    dui.externalDataSignalStoreKey = null;
     dui.commonDataSignalStoreKey = null;
     //#region ---------------- Common Tool ------------------------------
-    dui.addOjectCount = addOjectCount;
-    function addOjectCount(obj) {
-        if (typeof obj === "object" && !obj["ojectCount"]) {
-            Object.defineProperty(obj, "ojectCount", {
-                value: ++dui.ojectCount,
+    dui.addOjectHash = addOjectHash;
+    function addOjectHash(obj) {
+        if (typeof obj === "object" && !obj["_ojectHash"]) {
+            Object.defineProperty(obj, "_ojectHash", {
+                value: universalHash(obj, { keysOnly: true }),
                 enumerable: false,
                 writable: true,
                 configurable: true
             });
         }
 
-        return obj.ojectCount;
+        return obj._ojectHash;
     }
 
     function isFirstLetter(str) {
@@ -178,6 +167,113 @@
 
     //#region ------------------- SignalBasedReactiveDataLink -----------
     //#region ------------------- Data And UI Tool ----------------------
+    dui.universalHash = universalHash;
+    function universalHash(obj, options = {}) {
+        const MODULO = 2147483647; // 2^31-1 (büyük asal sayı)
+        const { includeFunctions = false, exclude = [], keysOnly = false, visited = new Set() } = options;
+        // Null veya undefined için sıfır dön
+        if (obj === null || obj === undefined) return 0;
+
+        // Circular referans önleme
+        if (typeof obj === 'object' || typeof obj === 'function') {
+            if (visited.has(obj)) return 0;
+            visited.add(obj);
+        }
+
+        let hash = 17;
+
+        // Tip adını hash'e dahil et
+        let typeName = typeof obj === 'object' && obj.constructor && obj.constructor.name
+            ? obj.constructor.name
+            : typeof obj;
+        hash = (hash * 31 + simpleStringHash(typeName)) % MODULO;
+
+        // Number
+        if (typeof obj === 'number') {
+            if (!keysOnly) hash = (hash * 31 + numberHash(obj)) % MODULO;
+            return (hash < 0 ? -hash : hash);
+        }
+
+        // Boolean
+        if (typeof obj === 'boolean') {
+            if (!keysOnly) hash = (hash * 31 + (obj ? 123 : 456)) % MODULO;
+            return (hash < 0 ? -hash : hash);
+        }
+
+        // String
+        if (typeof obj === 'string') {
+            if (!keysOnly) hash = (hash * 31 + simpleStringHash(obj)) % MODULO;
+            return (hash < 0 ? -hash : hash);
+        }
+
+        if (Array.isArray(obj)) {
+            if (keysOnly) {
+                hash = (hash * 31 + simpleStringHash('Array')) % MODULO;
+                // Dizilerde, sadece uzunluğu hash'e katabiliriz veya index isimleri (ör: '0', '1' ...)
+                for (let i = 0; i < obj.length; i++)
+                    hash = (hash * 31 + simpleStringHash(i.toString())) % MODULO;
+            } else {
+                for (let item of obj)
+                    hash = (hash * 31 + universalHash(item, { ...options, visited })) % MODULO;
+            }
+            return (hash < 0 ? -hash : hash);
+        }
+
+        if (obj instanceof Date) {
+            if (!keysOnly) hash = (hash * 31 + numberHash(obj.getTime())) % MODULO;
+            return (hash < 0 ? -hash : hash);
+        }
+
+        // Object (sadece data, opsiyonel function dahil)
+        if (typeof obj === 'object') {
+            let keys = Object.keys(obj).sort();
+            for (let key of keys) {
+                // Exclude listesine bak
+                if (exclude.includes(key)) {
+                    continue;
+                }
+                // Property descriptor ile get/set kontrolü
+                let desc = Object.getOwnPropertyDescriptor(obj, key);
+                if (desc && !desc.get && desc.set) {
+                    continue; // Accessor ise atla
+                }
+
+                let value;
+                if (desc && typeof desc.get === 'function') {
+                    try { value = obj[key]; }
+                    catch { continue; } // Getter hata verirse atla
+                } else {
+                    value = obj[key];
+                }
+
+                // Function'ları parametreye göre dahil et veya etme
+                if (typeof value === 'function' && !includeFunctions) continue;
+                // Key ve value'yu hash'e ekle
+                hash = (hash * 31 + simpleStringHash(key)) % MODULO;
+                if (!keysOnly) {
+                    hash = (hash * 31 + universalHash(value, { ...options, visited })) % MODULO;
+                }
+            }
+            return (hash < 0 ? -hash : hash);
+        }
+
+        // Fonksiyonların kendisi (objenin kendisi function ise) asla hash'lenmez, 0 döner
+        return (hash < 0 ? -hash : hash);
+    }
+
+    function simpleStringHash(str) {
+        const MODULO = 2147483647;
+        let hash = 5381;
+        for (let i = 0; i < str.length; i++)
+            hash = ((hash << 5) + hash) + str.charCodeAt(i);
+        return hash % MODULO;
+    }
+
+    function numberHash(num) {
+        if (Number.isInteger(num)) return num;
+        return simpleStringHash(num.toString());
+    }
+
     function parseObjectSafe(str) {
         const obj = {};
         const regex = /["']?([\w$şŞıİçÇüÜöÖğĞ]+)["']?\s*:\s*(?:"([^"]*)"|'([^']*)'|([^,'"{}\s]+))(?=\s*,|\s*})/g;
@@ -775,43 +871,48 @@
     //#endregion ---------------- Data And UI Tool ----------------------
     //#region ------------------- SignalBasedReactivity -----------------
     dui.signalScopes = new Map();
-    dui.saveSignalScope = saveSignalScope;
-    function saveSignalScope(target, val) {
-        if (target == null) return target;
-        if (typeof target == "object") {
-            target = target["ojectCount"];
+    dui.saveSignalStore = saveSignalStore;
+    function saveSignalStore(dataOrSignalStoreKey, val) {
+        if (dataOrSignalStoreKey == null) return null;
+        if (typeof dataOrSignalStoreKey == "object") {
+            dataOrSignalStoreKey = dataOrSignalStoreKey["_ojectHash"];
         }
 
-        dui.signalScopes.set(target, val);
-        return dui.signalScopes.get(target);
+        dui.signalScopes.set(dataOrSignalStoreKey, val);
+        return dui.signalScopes.get(dataOrSignalStoreKey);
     }
 
-    dui.getSignalScope = getSignalScope;
-    function getSignalScope(target) {
-        if (target == null) return target;
+    dui.getSignalStore = getSignalStore;
+    function getSignalStore(dataOrSignalStoreKey) {
+        if (dataOrSignalStoreKey == null) return null;
 
-        if (typeof target == "object") {
-            target = target["ojectCount"];
+        if (typeof dataOrSignalStoreKey == "object") {
+            if (!dataOrSignalStoreKey["_ojectHash"]) {
+                return null;
+            }
+
+            dataOrSignalStoreKey = dataOrSignalStoreKey["_ojectHash"];
         }
 
-        return dui.signalScopes.get(target);
+        if (!dui.signalScopes.has(dataOrSignalStoreKey)) {
+            return null;
+        }
+
+        return dui.signalScopes.get(dataOrSignalStoreKey);
     }
 
-    dui.getOrCreateSignalScope = getOrCreateSignalScope;
-    function getOrCreateSignalScope(target) {
-        if (target == null) return target;
-        if (typeof target == "object") {
-            target = target["ojectCount"];
+    dui.createSignalScope = createSignalScope;
+    function createSignalScope(dataSignalStoreKey = null) {
+        if (!dataSignalStoreKey) {
+            dataSignalStoreKey = uuidv4();
         }
 
-        if (!dui.signalScopes.has(target)) {
-            dui.signalScopes.set(target, createSignalStore());
-        }
+        dui.signalScopes.set(dataSignalStoreKey, createSignalStore());
 
-        return dui.signalScopes.get(target);
+        return dataSignalStoreKey;
     }
 
-    dui.createSignalStore = createSignalStore;
+    // dui.createSignalStore = createSignalStore;
     function createSignalStore() {
         return {
             signalStore: new WeakMap(),
@@ -921,7 +1022,7 @@
         function wrapped() {
             if (wrapped._executing) return;
 
-            const dataSignalStore = dui.getSignalScope(dataSignalStoreKey);
+            const dataSignalStore = dui.getSignalStore(dataSignalStoreKey);
 
             wrapped._executing = true;
             const oldDeps = wrapped.deps;
@@ -963,7 +1064,7 @@
 
     function walk(dataSignalStoreKey, target, parent, parentKey) {
         if (target && typeof target === "object" && !Object.getPrototypeOf(target).addProp) {
-            ReactiveProto.dataSignalStore = dui.getSignalScope(dataSignalStoreKey);;
+            ReactiveProto.dataSignalStore = dui.getSignalStore(dataSignalStoreKey);;
             Object.setPrototypeOf(target, ReactiveProto);
         }
 
@@ -984,7 +1085,7 @@
     function reactiveSignalObject(obj, dataSignalStoreKey) {
         walk(dataSignalStoreKey, obj, null, null);
 
-        return dui.getSignalScope(dataSignalStoreKey);
+        return dui.getSignalStore(dataSignalStoreKey);
     }
 
     function onDemandSignal(dataSignalStoreKey, path, data, isRecursive = 0) {
@@ -1048,7 +1149,7 @@
 
     function makeReactiveArray(dataSignalStoreKey, arr, parent, key) {
         const methods = ['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'];
-        const dataSignalStore = dui.getSignalScope(dataSignalStoreKey);
+        const dataSignalStore = dui.getSignalStore(dataSignalStoreKey);
         // Array'in kendisi için bir sinyal tutalım (önceki gibi)
         const arraySelfSignal = createSignal(dataSignalStore, arr);
 
@@ -1120,8 +1221,8 @@
             configurable: true,
             enumerable: true,
             get() {
-                console.log("defineProperty get => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
-                const dataSignalStore = dui.getSignalScope(dataSignalStoreKey);
+                // console.log("defineProperty get => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
+                const dataSignalStore = dui.getSignalStore(dataSignalStoreKey);
                 if (!initialized) {
                     // Signal’ı oluştur, property’ye kalıcı getter/setter ata
                     const signals = getSignalsMap(dataSignalStore, target);
@@ -1139,11 +1240,9 @@
                         configurable: true,
                         enumerable: true,
                         get() {
-                            console.log("defineProperty get get => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
                             return signals.get(key).get();
                         },
                         set(newVal) {
-                            console.log("defineProperty get set => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
                             if (newVal && typeof newVal === "object" && newVal !== signals.get(key).get()) {
                                 walk(dataSignalStoreKey, newVal, target, key);
                             }
@@ -1159,8 +1258,8 @@
                 return signals.has(key) ? signals.get(key).get() : internal;
             },
             set(newVal) {
-                console.log("defineProperty set => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
-                const dataSignalStore = dui.getSignalScope(dataSignalStoreKey);
+                // console.log("defineProperty set => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
+                const dataSignalStore = dui.getSignalStore(dataSignalStoreKey);
                 // Setter çağrıldıysa, aynı şekilde “tam” getter/setter kur
                 if (!initialized) {
                     const signals = getSignalsMap(dataSignalStore, target);
@@ -1174,11 +1273,11 @@
                         configurable: true,
                         enumerable: true,
                         get() {
-                            console.log("defineProperty set get => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
+                            // console.log("defineProperty set get => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
                             return signals.get(key).get();
                         },
                         set(val) {
-                            console.log("defineProperty set set => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
+                            // console.log("defineProperty set set => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
                             if (val && typeof val === "object" && val !== signals.get(key).get()) {
                                 walk(dataSignalStoreKey, val, target, key);
                             }
@@ -1217,10 +1316,10 @@
     dui.ref = ref;
     function ref(initialValue) {
         if (!dui.commonDataSignalStoreKey) {
-            dui.commonDataSignalStoreKey = uuidv4();
+            dui.commonDataSignalStoreKey = createSignalScope();
         }
 
-        const ss = getOrCreateSignalScope(dui.commonDataSignalStoreKey);
+        const ss = getSignalStore(dui.commonDataSignalStoreKey);
         const sig = createSignal(ss, initialValue);
 
         const read = () => {
@@ -1244,14 +1343,14 @@
     dui.computed = computed;
     function computed(fn, dataSignalStoreKey = null) {
         if (!dui.commonDataSignalStoreKey) {
-            dui.commonDataSignalStoreKey = uuidv4();
+            dui.commonDataSignalStoreKey = createSignalScope();
         }
 
         if (!dataSignalStoreKey) {
             dataSignalStoreKey = dui.commonDataSignalStoreKey;
         }
 
-        const ss = getOrCreateSignalScope(dataSignalStoreKey);
+        const ss = getSignalStore(dataSignalStoreKey);
         const sig = createSignal(ss, initialValue); // kendine ait bir signal oluştur
 
         createEffect(() => {
@@ -1286,7 +1385,7 @@
         };
 
         if (!dui.commonDataSignalStoreKey) {
-            dui.commonDataSignalStoreKey = uuidv4();
+            dui.commonDataSignalStoreKey = createSignalScope();
         }
 
         if (!dataSignalStoreKey) {
@@ -1319,14 +1418,14 @@
     dui.createMemo = createMemo;
     function createMemo(fn, dataSignalStoreKey = null) {
         if (!dui.commonDataSignalStoreKey) {
-            dui.commonDataSignalStoreKey = uuidv4();
+            dui.commonDataSignalStoreKey = createSignalScope();
         }
 
         if (!dataSignalStoreKey) {
             dataSignalStoreKey = dui.commonDataSignalStoreKey;
         }
 
-        const ss = getOrCreateSignalScope(dataSignalStoreKey);
+        const ss = getSignalStore(dataSignalStoreKey);
 
         let cached;
         const sig = createSignal(ss);
@@ -1420,7 +1519,7 @@
         }
 
         if (index !== null && Array.isArray(data)) {
-            const dataSignalStore = dui.getSignalScope(dataSignalStoreKey);
+            const dataSignalStore = dui.getSignalStore(dataSignalStoreKey);
             const signals = getSignalsMap(dataSignalStore, data);
             const sig = signals.get(index);
 
@@ -1452,13 +1551,11 @@
     }
     //#endregion ---------------- UI Data Binding -----------------------
     //#region ------------------- UI Template ---------------------------
-    function uiRender({ data, bindingType = 'One-Way' }, options = null, dataSignalStore = null) {
-        let dataSignalStoreKey = null;
+    function uiRender({ data, bindingType = 'One-Way' }, options = null, dataSignalStoreKey = null) {
+        let _dataSignalStoreKey = null;
 
-        if (dataSignalStore) {
-            dui.externalDataSignalStoreKey = uuidv4();
-            dataSignalStoreKey = dui.externalDataSignalStoreKey;
-            saveSignalScope(dataSignalStoreKey, dataSignalStore);
+        if (dataSignalStoreKey) {
+            _dataSignalStoreKey = dataSignalStoreKey
         }
 
         if (options && typeof options == "object") {
@@ -1466,9 +1563,13 @@
                 options.data = data;
             }
 
-            if (!dataSignalStoreKey && options.data) {
-                dataSignalStoreKey = addOjectCount(options.data);
-                getOrCreateSignalScope(dataSignalStoreKey);
+            if (!_dataSignalStoreKey) {
+                if (options.data) {
+                    _dataSignalStoreKey = addOjectHash(options.data);
+                    createSignalScope(_dataSignalStoreKey);
+                }
+            } else {
+                options.dataSignalStoreKey = _dataSignalStoreKey;
             }
 
             if (options.bindingType == null) {
@@ -1483,13 +1584,13 @@
             return this;
         }
 
-        if (!dataSignalStoreKey) {
-            dataSignalStoreKey = addOjectCount(data);
-            getOrCreateSignalScope(dataSignalStoreKey);
+        if (!_dataSignalStoreKey && data) {
+            _dataSignalStoreKey = addOjectHash(data);
+            createSignalScope(_dataSignalStoreKey);
         }
 
         for (const element of this.elements) {
-            dataBindingToElement(dataSignalStoreKey, element, data, bindingType);
+            dataBindingToElement(_dataSignalStoreKey, element, data, bindingType);
         }
 
         return this;
@@ -1587,16 +1688,15 @@
             return;
         }
 
-        let dataSignalStoreKey = getSignalScope(dui.externalDataSignalStoreKey);
-
-        if (data && (!dataSignalStoreKey || dataSignalStoreKey != 0)) {
-            dataSignalStoreKey = addOjectCount(data);
-            getOrCreateSignalScope(dataSignalStoreKey);
+        let dataSignalStoreKey = null;
+        if (!options.dataSignalStoreKey) {
+            if (data) {
+                dataSignalStoreKey = addOjectHash(data);
+                createSignalScope(dataSignalStoreKey);
+            }
+        } else {
+            dataSignalStoreKey = options.dataSignalStoreKey;
         }
-
-        // if (options.isCommonData == true || options.templateIsCommonData == true) {
-        //     templateData = commonData;
-        // }
 
         dataBindingToTemplate(dataSignalStoreKey, mTemplate, data, bindingType, additionType, templateFromInput, options);
 
@@ -1620,7 +1720,7 @@
         }
 
         if (isArrayLike(data)) {
-            addOjectCount(data);
+            addOjectHash(data);
             const df = document.createDocumentFragment();
             var templateClone = template.cloneNode(true);
             for (let i = 0; i < data.length; i++) {
@@ -1722,10 +1822,6 @@
                     }
                 }
 
-                // if (!pt_dt && template.content.querySelector('[data-binding]') || options.isParentData) {
-                //     pt_dt = templateData;
-                // }
-
                 let nestedtemplate = processTemplate(inTemplate, inData, inBindingType, inAdditionType, templateFromInput, options);
 
                 if (inAdditionType == "prepend") {
@@ -1794,4 +1890,3 @@
 
     return dui;
 });
-
