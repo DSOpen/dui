@@ -104,6 +104,14 @@
         //#region ------------------- SignalBasedReactiveDataLink -----------
         uiRender: uiRender,
         //#endregion ---------------- SignalBasedReactiveDataLink -----------
+        html(value) {
+            if (value === undefined) return this.elements[0]?.innerHTML;
+            return this.elements.forEach((elm, i) => elm.innerHTML = value);
+        },
+        text(value) {
+            if (value === undefined) return this.elements[0]?.textContent;
+            return this.elements.forEach((elm, i) => elm.textContent = value);
+        },
     };
 
     dui.mt.init.prototype = dui.mt;
@@ -164,6 +172,256 @@
         });
     }
     //#endregion ------------- Common Tool --------------------------------
+    //#region ---------------- Ajax Tool ----------------------------------
+    dui.ajax = ajax;
+    function ajax(options) {
+        const {
+            url,
+            method = 'GET',
+            data = null,
+            headers = {},
+            responseType = 'json',
+            timeout = 0,
+            beforeSend,
+            success,
+            error,
+            complete,
+            progress,
+            abort
+        } = options;
+
+        const xhr = new XMLHttpRequest();
+
+        const chain = {
+            successCallbacks: success ? [success] : [],
+            errorCallbacks: error ? [error] : [],
+            completeCallbacks: complete ? [complete] : [],
+            progressCallbacks: progress ? [progress] : [],
+            abortCallbacks: abort ? [abort] : [],
+
+            success(fn) { this.successCallbacks.push(fn); return this; },
+            error(fn) { this.errorCallbacks.push(fn); return this; },
+            complete(fn) { this.completeCallbacks.push(fn); return this; },
+            progress(fn) { this.progressCallbacks.push(fn); return this; },
+            abort(fn) { this.abortCallbacks.push(fn); return this; }
+        };
+
+        xhr.open(method, url, true);
+        xhr.timeout = timeout;
+
+        for (const key in headers) {
+            xhr.setRequestHeader(key, headers[key]);
+        }
+
+        if (beforeSend && beforeSend(xhr) === false) {
+            const errObj = { message: 'Request cancelled by beforeSend', status: null };
+            chain.errorCallbacks.forEach(cb => cb(errObj));
+            chain.completeCallbacks.forEach(cb => cb());
+            return chain;
+        }
+
+        xhr.responseType = responseType === 'json' ? 'text' : responseType;
+
+        xhr.onload = function () {
+            let response = xhr.responseText;
+            if (responseType === 'json') {
+                try {
+                    response = JSON.parse(response);
+                } catch (e) {
+                    chain.errorCallbacks.forEach(cb => cb({ message: 'Invalid JSON response', status: xhr.status }));
+                    chain.completeCallbacks.forEach(cb => cb(xhr));
+                    return;
+                }
+            }
+            if (xhr.status >= 200 && xhr.status < 300) {
+                chain.successCallbacks.forEach(cb => cb(response, xhr));
+            } else {
+                chain.errorCallbacks.forEach(cb => cb({ message: `HTTP ${xhr.status}`, status: xhr.status, response }));
+            }
+            chain.completeCallbacks.forEach(cb => cb(xhr));
+        };
+
+        xhr.onerror = function () {
+            chain.errorCallbacks.forEach(cb => cb({ message: 'Network error', status: xhr.status || null }));
+            chain.completeCallbacks.forEach(cb => cb(xhr));
+        };
+
+        xhr.ontimeout = function () {
+            chain.errorCallbacks.forEach(cb => cb({ message: 'Request timed out', status: 408 }));
+            chain.completeCallbacks.forEach(cb => cb(xhr));
+        };
+
+        xhr.onabort = function () {
+            chain.abortCallbacks.forEach(cb => cb());
+            chain.errorCallbacks.forEach(cb => cb({ message: 'Request aborted', status: null }));
+            chain.completeCallbacks.forEach(cb => cb(xhr));
+        };
+
+        if (xhr.upload && chain.progressCallbacks.length > 0) {
+            xhr.upload.onprogress = function (event) {
+                chain.progressCallbacks.forEach(cb => cb(event));
+            };
+        }
+
+        if (data) {
+            const payload = typeof data === 'string' ? data : JSON.stringify(data);
+            if (typeof data !== 'string') {
+                xhr.setRequestHeader('Content-Type', 'application/json');
+            }
+            xhr.send(payload);
+        } else {
+            xhr.send();
+        }
+
+        return chain;
+    }
+
+    dui.ajaxFetch = ajaxFetch;
+    function ajaxFetch(options) {
+        const {
+            url,
+            method = 'GET',
+            data = null,
+            headers = {},
+            responseType = 'json',
+            timeout = 0,
+            beforeSend,
+            success,
+            error,
+            complete,
+            progress,
+            abort
+        } = options;
+
+        const chain = {
+            successCallbacks: success ? [success] : [],
+            errorCallbacks: error ? [error] : [],
+            completeCallbacks: complete ? [complete] : [],
+            progressCallbacks: progress ? [progress] : [],
+            abortCallbacks: abort ? [abort] : [],
+            success(fn) { this.successCallbacks.push(fn); return this; },
+            error(fn) { this.errorCallbacks.push(fn); return this; },
+            complete(fn) { this.completeCallbacks.push(fn); return this; },
+            progress(fn) { this.progressCallbacks.push(fn); return this; },
+            abort(fn) { this.abortCallbacks.push(fn); return this; },
+            abortRequest() { controller.abort(); return this; }
+        };
+
+        const controller = new AbortController();
+        const signal = controller.signal;
+
+        const fetchOptions = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                ...headers
+            },
+            signal
+        };
+
+        if (data) {
+            fetchOptions.body = typeof data === 'string' ? data : JSON.stringify(data);
+        }
+
+        if (beforeSend && beforeSend(fetchOptions) === false) {
+            const errObj = { message: 'Request cancelled by beforeSend', status: null };
+            chain.errorCallbacks.forEach(cb => cb(errObj));
+            chain.completeCallbacks.forEach(cb => cb());
+            return chain;
+        }
+
+        if (timeout > 0) {
+            setTimeout(() => controller.abort(), timeout);
+        }
+
+        fetch(url, fetchOptions)
+            .then(async res => {
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw { message: `HTTP ${res.status}`, status: res.status, response: errText };
+                }
+
+                if (responseType === 'stream') {
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let result = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value, { stream: true });
+                        result += chunk;
+                        chain.progressCallbacks.forEach(cb => cb(chunk));
+                    }
+                    chain.successCallbacks.forEach(cb => cb(result, res));
+                    chain.completeCallbacks.forEach(cb => cb(res));
+                } else if (responseType === 'text') {
+                    const text = await res.text();
+                    chain.successCallbacks.forEach(cb => cb(text, res));
+                    chain.completeCallbacks.forEach(cb => cb(res));
+                } else if (responseType === 'blob') {
+                    const blob = await res.blob();
+                    chain.successCallbacks.forEach(cb => cb(blob, res));
+                    chain.completeCallbacks.forEach(cb => cb(res));
+                } else {
+                    try {
+                        const json = await res.json();
+                        chain.successCallbacks.forEach(cb => cb(json, res));
+                    } catch (e) {
+                        chain.errorCallbacks.forEach(cb => cb({ message: 'Invalid JSON', status: res.status }));
+                    }
+                    chain.completeCallbacks.forEach(cb => cb(res));
+                }
+            })
+            .catch(err => {
+                if (signal.aborted) {
+                    chain.abortCallbacks.forEach(cb => cb());
+                    chain.errorCallbacks.forEach(cb => cb({ message: 'Request aborted', status: null }));
+                } else if (err && typeof err === 'object' && err.error) {
+                    chain.errorCallbacks.forEach(cb => cb(err));
+                } else {
+                    chain.errorCallbacks.forEach(cb => cb({ message: err.message || err, status: null }));
+                }
+                chain.completeCallbacks.forEach(cb => cb());
+            });
+
+        return chain;
+    }
+
+    dui.ajaxSubmit = ajaxSubmit;
+    function ajaxSubmit(options = {}) {
+        return this.each(function () {
+            const form = this;
+
+            if (form.nodeName !== "FORM") return;
+
+            const formData = new FormData(form);
+
+            const defaultOptions = {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json',
+                },
+                responseType: 'json',
+            };
+
+            const finalOptions = { ...defaultOptions, ...options };
+
+            fetch(finalOptions.url || form.action, finalOptions)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    if (options.success) options.success(data);
+                })
+                .catch(error => {
+                    if (options.error) options.error(error);
+                });
+        });
+    }
+    //#endregion ------------- Ajax Tool ----------------------------------
 
     //#region ------------------- SignalBasedReactiveDataLink -----------
     //#region ------------------- Data And UI Tool ----------------------
