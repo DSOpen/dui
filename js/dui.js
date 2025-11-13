@@ -1,6 +1,6 @@
 !(function (global, factory) {
     "use strict";
-
+    //VS
     if (typeof module === "object" && typeof module.exports === "object") {
         module.exports = global.document
             ? factory(global, true)
@@ -69,7 +69,7 @@
                         const nodes = tmp.content.children;
 
                         if (!nodes.length) {
-                            throw new Error('HTML string boş veya geçersiz');
+                            return this; // throw new Error('HTML string boş veya geçersiz');
                         }
 
                         for (let i = 0; i < nodes.length; i++) {
@@ -81,7 +81,7 @@
                         const nodes = document.querySelectorAll(selector);
 
                         if (!nodes.length) {
-                            throw new Error(`Seçici "${selector}" ile eşleşen eleman bulunamadı`);
+                            return this; //throw new Error(`Seçici "${selector}" ile eşleşen eleman bulunamadı`);
                         }
 
                         Array.from(nodes).forEach((node, i) => this.elements[i] = node);
@@ -104,6 +104,17 @@
         //#region ------------------- SignalBasedReactiveDataLink -----------
         uiRender: uiRender,
         //#endregion ---------------- SignalBasedReactiveDataLink -----------
+        bindSmartEvent(eventType, fn) {
+            const prms = Array.prototype.slice.call(arguments, 2);
+            return bindSmartEvent(this.elements, eventType, fn, prms);
+        },
+        bindSmartEventFromString(eventType, funcStr, values, isparam, root) {
+            return bindSmartEventFromString(this.elements, eventType, funcStr, values, isparam, root);
+        },
+        off(types, fn) {
+            off(this.elements, types, fn);
+            return this;
+        },
         html(value) {
             if (value === undefined) return this.elements[0]?.innerHTML;
             return this.elements.forEach((elm, i) => elm.innerHTML = value);
@@ -111,7 +122,7 @@
         text(value) {
             if (value === undefined) return this.elements[0]?.textContent;
             return this.elements.forEach((elm, i) => elm.textContent = value);
-        },
+        }
     };
 
     dui.mt.init.prototype = dui.mt;
@@ -170,6 +181,25 @@
             const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
+    }
+
+    function GetElementByFirstLevelAttribute(elm, attr) {
+        let nodes = [];
+        let children;
+
+        if (elm.tagName == "TEMPLATE") {
+            children = elm.content.children;
+        } else {
+            children = elm.children
+        }
+
+        for (let i = 0; i < children.length; i++) {
+            if (children[i].hasAttribute(attr)) {
+                nodes.push(children[i]);
+            }
+        }
+
+        return nodes;
     }
     //#endregion ------------- Common Tool --------------------------------
     //#region ---------------- Ajax Tool ----------------------------------
@@ -519,6 +549,7 @@
         return (hash < 0 ? -hash : hash);
     }
 
+    dui.simpleStringHash = simpleStringHash;
     function simpleStringHash(str) {
         const MODULO = 2147483647;
         let hash = 5381;
@@ -527,11 +558,13 @@
         return hash % MODULO;
     }
 
+    dui.numberHash = numberHash;
     function numberHash(num) {
         if (Number.isInteger(num)) return num;
         return simpleStringHash(num.toString());
     }
 
+    dui.parseObjectSafe = parseObjectSafe;
     function parseObjectSafe(str) {
         const obj = {};
         const regex = /["']?([\w$şŞıİçÇüÜöÖğĞ]+)["']?\s*:\s*(?:"([^"]*)"|'([^']*)'|([^,'"{}\s]+))(?=\s*,|\s*})/g;
@@ -550,6 +583,93 @@
         return obj;
     }
 
+    dui.parseArraySafe = parseArraySafe;
+    function parseArraySafe(str) {
+        const arr = [];
+
+        // sadece [ ... ] içini yakala
+        const inner = str.trim().replace(/^\[/, "").replace(/\]$/, "");
+
+        // virgüllere göre böl (ama boş stringleri at)
+        const parts = inner.split(/\s*,\s*/).filter(p => p.length > 0);
+
+        for (let part of parts) {
+            // baştaki/sondaki tırnakları temizle
+            if ((part.startsWith('"') && part.endsWith('"')) ||
+                (part.startsWith("'") && part.endsWith("'"))) {
+                part = part.slice(1, -1);
+                arr.push(part);
+                continue;
+            }
+
+            // özel değerler
+            if (part === "true") arr.push(true);
+            else if (part === "false") arr.push(false);
+            else if (part === "null") arr.push(null);
+            else if (!isNaN(Number(part))) arr.push(Number(part));
+            else arr.push(part);
+        }
+
+        return arr;
+    }
+
+    dui.parseObjectKeyValue = parseObjectKeyValue;
+    function parseObjectKeyValue(str) {
+        const result = [];
+        let items = [];
+        let part = '';
+        let inQuotes = false, quoteChar = '', bracketLevel = 0, esc = false;
+        // İlk olarak split işlemi (virgülleri tırnak/parantez dışında yakalıyoruz)
+        for (let i = 0; i < str.length; i++) {
+            let c = str[i];
+            if (esc) { part += c; esc = false; continue; }
+            if (c === '\\') { part += c; esc = true; continue; }
+            if ((c === "'" || c === '"')) {
+                if (!inQuotes) { inQuotes = true; quoteChar = c; part += c; continue; }
+                else if (c === quoteChar) { inQuotes = false; part += c; continue; }
+            }
+            if (!inQuotes && (c === '[' || c === '{')) { bracketLevel++; part += c; continue; }
+            if (!inQuotes && (c === ']' || c === '}')) { bracketLevel--; part += c; continue; }
+            if (!inQuotes && bracketLevel === 0 && c === ',') {
+                items.push(part.trim());
+                part = '';
+                continue;
+            }
+            part += c;
+        }
+        if (part) items.push(part.trim());
+
+        // Şimdi her parçayı key:value olarak ayıralım
+        for (const item of items) {
+            // Sadece ilk : ile böl, yoksa value var key yok
+            let idx = -1, inQuotes = false, quoteChar = '', bracketLevel = 0, esc = false;
+            for (let i = 0; i < item.length; i++) {
+                let c = item[i];
+                if (esc) { esc = false; continue; }
+                if (c === '\\') { esc = true; continue; }
+                if ((c === "'" || c === '"')) {
+                    if (!inQuotes) { inQuotes = true; quoteChar = c; continue; }
+                    else if (c === quoteChar) { inQuotes = false; continue; }
+                }
+                if (!inQuotes && c === '[' || c === '{') { bracketLevel++; continue; }
+                if (!inQuotes && c === ']' || c === '}') { bracketLevel--; continue; }
+                if (!inQuotes && bracketLevel === 0 && c === ':') {
+                    idx = i; break;
+                }
+            }
+            if (idx === -1) {
+                // Hiç : yoksa, key yok, value var
+                result.push(["", item.trim()]);
+            } else {
+                let key = item.slice(0, idx).trim();
+                let value = item.slice(idx + 1).trim();
+                result.push([key, value]);
+            }
+        }
+        return result;
+    }
+
+    dui.isPlainObject = isPlainObject;
     function isPlainObject(obj) {
         return (
             obj !== null &&
@@ -557,6 +677,8 @@
             Object.getPrototypeOf(obj) === Object.prototype
         );
     }
+
+    dui.isDomElement = isDomElement;
     function isDomElement(obj) {
         return (
             obj instanceof Element ||
@@ -565,6 +687,8 @@
             obj instanceof HTMLCollection
         );
     }
+
+    dui.isEmpty = isEmpty;
     function isEmpty(obj) {
         for (var key in obj) {
             if (obj.hasOwnProperty(key)) {
@@ -573,6 +697,7 @@
         }
         return true;
     }
+    dui.isArrayLike = isArrayLike;
     function isArrayLike(obj) {
         if (obj == null || typeof obj === "string" || typeof obj === "function") return false;
 
@@ -949,6 +1074,7 @@
         }
     }
 
+    dui.getValue = getValue;
     function getValue(obj, path) {
         try {
             // Fonksiyon veya expression ise evaluate et
@@ -988,6 +1114,7 @@
         //return path.split('.').reduce((o, p) => o?.[p], obj);
     }
 
+    dui.setValue = setValue;
     function setValue(obj, path, value) {
         // Eğer path array index içeriyorsa, yeni path parser’ı kullan
         const parts = [];
@@ -1022,11 +1149,14 @@
         }
     }
 
+    dui.IsSettableValue = IsSettableValue;
     function IsSettableValue(el, path) {
         const defaultSettableProperty = getDefaultSettableProperty(el);
 
-        if (path.includes("{:") && path.endsWith("}")) {
-            const [attr, realPath] = parseAttributeBinding(path);
+        if (Array.isArray(path) || Array.isArray(path[0])) {
+            const attr = path[0];
+            const realPath = path[1];
+
             if (attr) {
                 if (attr == defaultSettableProperty) {
                     return true;
@@ -1034,59 +1164,18 @@
 
                 return false;
             }
-
-            return true;
         }
 
-        if (defaultSettableProperty in el) {
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
-    function updateElement(elm, path, data) {
-        const leftMatch = path.match(/{(\w*):/);
+    dui.pathIsEvent = pathIsEvent;
+    function pathIsEvent(path) {
+        if (!Array.isArray(path)) return false;
 
-        if (leftMatch && path.endsWith("}")) {
-            const [attr, realPath] = parseAttributeBinding(path);
+        if (path[0].startsWith("event") || path[0].startsWith("eventprop") || path[0].startsWith("func") || path[0].startsWith("funcdata")) return true;
 
-            if (attr) {
-                const attrVal = getValue(data, realPath);
-
-                if (attr == 'disabled' || attr == 'selected') {
-                    if (attrVal) {
-                        elm.setAttribute(attr, "");
-                    }
-                    else {
-                        elm.removeAttribute(attr);
-                    }
-                } else if (attr == 'innerHTML') {
-                    elm.innerHTML = attrVal;
-                } else if (attr == 'innerText') {
-                    elm.innerText = attrVal;
-                } else if (attr == 'textContent') {
-                    elm.textContent = attrVal;
-                }
-                else {
-                    elm.setAttribute(attr, attrVal);
-                }
-
-            } else {
-                updateElement(elm, realPath, data);
-            }
-
-            return;
-        }
-
-        const raw = getValue(data, path);
-        if (elm.type === 'checkbox') {
-            if (elm.checked !== raw) elm.checked = !!raw;
-        } else if ('value' in elm) {
-            if (document.activeElement !== elm && elm.value !== raw) elm.value = raw ?? '';
-        } else {
-            if (elm.textContent !== raw) elm.textContent = raw ?? '';
-        }
+        return false;
     }
 
     function parseAttributeBinding(binding) {
@@ -1097,6 +1186,7 @@
         ];
     }
 
+    dui.getDefaultEventHandlerType = getDefaultEventHandlerType;
     function getDefaultEventHandlerType(el) {
         const elType = el.type;
         if (elType == "text") {
@@ -1125,6 +1215,186 @@
                 console.error("Unhandled effect error:", err, "in", context);
             }
         }
+    }
+
+    /***** Ortak yardımcılar *****/
+    const EVENT_PARAM_SET = new Set(['e', 'ev', 'evt', 'event']);
+
+    // 1) Parametre adlarını çıkar (yorumları, default değerleri, rest/destructuring’i temizler)
+    dui.getParamNames = getParamNames;
+    function getParamNames(fn) {
+        var src = Function.prototype.toString.call(fn);
+        var m = src.match(/^[\s\S]*?\(([\s\S]*?)\)/);
+        if (!m) return [];
+        var inside = m[1]
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/\/\/.*$/gm, '');
+        if (!inside.trim()) return [];
+        return inside.split(',').map(function (s) {
+            s = s.trim().replace(/^\.\.\./, '');
+            if (s[0] === '{' || s[0] === '[') return '';
+            s = s.split('=')[0].trim();
+            return s;
+        }).filter(Boolean);
+    }
+
+    // 2) Event’i doğru yere yerleştir, diğer parametreleri sırayla doldur
+    dui.buildArgsFor = buildArgsFor;
+    function buildArgsFor(fn, e, extra) {
+        var names = getParamNames(fn);
+        if (names.length === 0) return extra.slice(); // parametresiz ise sadece extra
+        var eventSlots = [];
+        for (var i = 0; i < names.length; i++) {
+            var nm = String(names[i] || '');//.toLowerCase();
+            if (EVENT_PARAM_SET.has(nm)) eventSlots.push(i);
+        }
+        if (eventSlots.length === 0) return extra.slice(); // imzada event adı yoksa event geçmeyiz
+
+        var out = [];
+        var queue = extra.slice();
+        for (var p = 0; p < names.length; p++) {
+            if (eventSlots.indexOf(p) !== -1) out.push(e);
+            else out.push(queue.length ? queue.shift() : undefined);
+        }
+        while (queue.length) out.push(queue.shift());
+        return out;
+    }
+
+    /***** 3) İnce adapter: string -> (fn, extra) -> bindSmartEvent *****/
+    dui.parseCallSpec = parseCallSpec;
+    function parseCallSpec(spec) {
+        if (spec.indexOf("'") == 0) {
+            spec = spec.slice(1);
+        }
+
+        if (spec.lastIndexOf("'") == spec.length - 1) {
+            spec = spec.slice(0, spec.length - 1);
+        }
+        var m = String(spec).trim().match(/^([$\w.]+)\s*\(([^)]*)\)\s*$/);
+        if (!m) throw new Error('Geçersiz çağrı ifadesi: ' + spec);
+        var argStr = m[2].trim();
+        // Argümanları ayır, yorumları temizle ve boşları filtrele
+        var args = !argStr ? [] : argStr.split(',').map(function (x) {
+            return x.replace(/\/\*.*?\*\//g, '').replace(/\/\/.*$/, '').trim();
+        }).filter(Boolean);
+        return { path: m[1], args: args };
+    }
+
+    dui.resolveFunction = resolveFunction;
+    function resolveFunction(path, root) {
+        var ctx = root || (typeof window !== 'undefined' ? window : globalThis);
+        var parts = path.split('.');
+        for (var i = 0; i < parts.length; i++) {
+            if (ctx == null) return null;
+            ctx = ctx[parts[i]];
+        }
+        return (typeof ctx === 'function') ? ctx : null;
+    }
+
+    dui.bindSmartEventFromString = bindSmartEventFromString;
+    /**
+     * String çağrıyı çözüp bindSmartEvent’e yönlendirir.
+     * @param targets  Element / NodeList / Array
+     * @param types    "click mouseenter" veya ["click","mouseenter"]
+     * @param callSpec "MyNS.Do(e,id,mode)" gibi
+     * @param values   { id: 42, mode: "edit" } gibi eşleştirme (placeholder -> değer)
+     * @param root     opsiyonel kök nesne (varsayılan window/globalThis)
+     */
+    function bindSmartEventFromString(targets, types, callSpec, values, isparam, root) {
+        values = values || {};
+        if (!isparam) {
+            isparam = false;
+        }
+        var spec = parseCallSpec(callSpec);
+        var fn = resolveFunction(spec.path, root);
+        if (!fn) throw new Error('Fonksiyon bulunamadı: ' + spec.path);
+
+        var argNames = spec.args;
+
+        // Hedefleri normalize et
+        var els = (NodeList.prototype.isPrototypeOf(targets) || Array.isArray(targets))
+            ? Array.from(targets) : [targets];
+
+        // Event tiplerini normalize et
+        var typeList = Array.isArray(types)
+            ? types : String(types).split(/\s+/).filter(Boolean);
+
+        var handlers = [];
+
+        els.forEach(function (el) {
+            typeList.forEach(function (type) {
+                var handler = function (e) {
+                    // Argümanları oluştur: event parametreleri için e, diğerleri için values'tan al
+                    if (isparam) {
+                        var args = buildArgsFor(fn, e, values);
+                        return fn.apply(el, args);
+                    }
+
+                    var finalArgs = argNames.map(function (argName) {
+                        // argName = argName.toLowerCase();
+                        if (EVENT_PARAM_SET.has(argName)) {
+                            return e;
+                        } else {
+                            if (argName.indexOf("'") == 0 || Number.parseInt(argName)) {
+                                return argName.replaceAll("'", "");
+                            }
+
+                            return getValue(values, argName); //values[argName];
+                        }
+                    });
+                    return fn.apply(el, finalArgs);
+                };
+
+                // el.removeEventListener(type, handler,true);
+                el.addEventListener(type, handler);
+                handlers.push({ el: el, type: type, handler: handler });
+            });
+        });
+
+        // off() fonksiyonunu döndür
+        return function off() {
+            handlers.forEach(function (h) {
+                h.el.removeEventListener(h.type, h.handler);
+            });
+        };
+    }
+
+    dui.bindSmartEvent = bindSmartEvent;
+    // 3) Akıllı bind: çoklu element ve çoklu event tipi, off() döndürür
+    function bindSmartEvent(targets, types, fn) {
+        var extra = Array.prototype.slice.call(arguments, 3);
+
+        var els = (NodeList.prototype.isPrototypeOf(targets) || Array.isArray(targets))
+            ? Array.from(targets) : [targets];
+
+        var typeList = Array.isArray(types)
+            ? types : String(types).split(/\s+/).filter(Boolean);
+
+        var handlers = [];
+
+        els.forEach(function (el) {
+            typeList.forEach(function (type) {
+                var handler = function (e) {
+                    var args = buildArgsFor(fn, e, extra);
+                    return fn.apply(el, args);
+                };
+                el.addEventListener(type, handler);
+                handlers.push({ el: el, type: type, handler: handler });
+            });
+        });
+
+        return function off() {
+            handlers.forEach(function (h) {
+                h.el.removeEventListener(h.type, h.handler);
+            });
+        };
+    }
+
+    dui.off = off;
+    function off(targets, types, fn) {
+        targets.forEach(el => {
+            el.removeEventListener(types, fn);
+        });
     }
     //#endregion ---------------- Data And UI Tool ----------------------
     //#region ------------------- SignalBasedReactivity -----------------
@@ -1160,12 +1430,17 @@
     }
 
     dui.createSignalScope = createSignalScope;
-    function createSignalScope(dataSignalStoreKey = null) {
+    function createSignalScope(dataSignalStoreKey = null, bypass = false) {
         if (!dataSignalStoreKey) {
             dataSignalStoreKey = uuidv4();
         }
-
-        dui.signalScopes.set(dataSignalStoreKey, createSignalStore());
+        if (bypass) {
+            dui.signalScopes.set(dataSignalStoreKey, createSignalStore());
+        } else {
+            if (!dui.signalScopes.has(dataSignalStoreKey)) {
+                dui.signalScopes.set(dataSignalStoreKey, createSignalStore());
+            }
+        }
 
         return dataSignalStoreKey;
     }
@@ -1343,7 +1618,7 @@
     function reactiveSignalObject(obj, dataSignalStoreKey) {
         walk(dataSignalStoreKey, obj, null, null);
 
-        return dui.getSignalStore(dataSignalStoreKey);
+        return getSignalStore(dataSignalStoreKey);
     }
 
     function onDemandSignal(dataSignalStoreKey, path, data, isRecursive = 0) {
@@ -1352,28 +1627,15 @@
             return;
         }
 
-        const bindings = path.split(/,(?![^{]*})/).map((b) => {
-            let binding = b.trim(), result = [];
-            const eventMatch = binding.match(/{\:([\w.]+),(\w+):([\w.]+)\}/);
-
-            if (eventMatch) {
-                if (eventMatch[2] == "event") {
-                    result.push(eventMatch[1]);
-                    result.push(eventMatch[3]);
-
-                    return result;
-                }
-            }
-            const leftMatch = binding.match(/{(\w*):/);
-            if (leftMatch && binding.endsWith("}")) {
-                const [attr, realPath] = parseAttributeBinding(binding);
-                result.push(realPath);
-            } else {
-                result.push(binding);
+        const bindings = parseObjectKeyValue(path).reduce((acc, pair) => {
+            if (pathIsEvent(pair)) {
+                return acc;
             }
 
-            return result;
-        }).flat();
+            acc.push(pair[1]); // 1. grup (special)
+
+            return acc;
+        }, []);
 
         let current = data;
         let parent = null, parentKey = null;
@@ -1436,7 +1698,7 @@
                         const start = oldArrlen;
                         args.forEach((item, i) => {
                             if (item && typeof item === 'object') {
-                                reactiveSignalObject(item);
+                                reactiveSignalObject(item, dataSignalStoreKey);
                             }
 
                             reactiveSignalProperty(dataSignalStoreKey, this, start + i);
@@ -1475,12 +1737,14 @@
         let initialized = false;
         let internal = target[key]; // Özelliğin anlık değeri
 
+        if (internal == undefined) return;
+
         Object.defineProperty(target, key, {
             configurable: true,
             enumerable: true,
             get() {
                 // console.log("defineProperty get => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
-                const dataSignalStore = dui.getSignalStore(dataSignalStoreKey);
+                const dataSignalStore = getSignalStore(dataSignalStoreKey);
                 if (!initialized) {
                     // Signal’ı oluştur, property’ye kalıcı getter/setter ata
                     const signals = getSignalsMap(dataSignalStore, target);
@@ -1517,7 +1781,7 @@
             },
             set(newVal) {
                 // console.log("defineProperty set => dataSignalStoreKey:" + dataSignalStoreKey + " - key:" + key);
-                const dataSignalStore = dui.getSignalStore(dataSignalStoreKey);
+                const dataSignalStore = getSignalStore(dataSignalStoreKey);
                 // Setter çağrıldıysa, aynı şekilde “tam” getter/setter kur
                 if (!initialized) {
                     const signals = getSignalsMap(dataSignalStore, target);
@@ -1702,37 +1966,145 @@
     }
     //#endregion ---------------- SignalBasedReactivity -----------------
     //#region ------------------- UI Data Binding -----------------------
+    function elementSetAttrFormat(elm, setAttrFormat, path, val) {
+        if (!elm || !setAttrFormat || setAttrFormat.trim() == "" || !path) return;
+        let attrFormatArry = setAttrFormat.split("=");
+        let attr = attrFormatArry[0];
+        let attrFormat = attrFormatArry[1];
 
-    function bindElement(el, path, data, mode, dataSignalStoreKey) {
-        let customEventHandlerType = null;
-        const leftMatch = path.match(/{\:([\w.]+),(\w+):([\w.]+)\}/);
-        if (leftMatch) {
-            if (leftMatch[2] == "event") {
-                customEventHandlerType = getValue(data, leftMatch[3]);
-                if (customEventHandlerType == null) {
+        path = path.split(".");
+        path = path[path.length - 1];
 
-                    return;
+        attrFormat = attrFormat.replace("{key}", path);
+        attrFormat = attrFormat.replace("{value}", val);
+
+        elm.setAttribute(attr, attrFormat);
+    }
+
+    function updateElement(elm, path, data) {
+        let realPath = path;
+
+        if (Array.isArray(path)) {
+            if (pathIsEvent(path)) return;
+            const attr = path[0];
+            realPath = path[1];
+
+            if (attr) {
+                let attrVal = "";
+
+                if (realPath.indexOf("'") == 0 || realPath.indexOf('"') == realPath.length - 1) {
+                    attrVal = realPath.replaceAll(/['"]/g, "");
+                } else {
+                    attrVal = getValue(data, realPath);
                 }
-                path = leftMatch[1];
+
+                if (attr == 'disabled' || attr == 'selected') {
+                    if (attrVal) {
+                        elm.setAttribute(attr, "");
+                    }
+                    else {
+                        elm.removeAttribute(attr);
+                    }
+                } else if (attr == 'innerHTML') {
+                    elm.innerHTML = attrVal;
+                } else if (attr == 'innerText') {
+                    elm.innerText = attrVal;
+                } else if (attr == 'textContent') {
+
+                    elm.textContent = attrVal;
+                }
+                else {
+                    elm.setAttribute(attr, attrVal);
+                }
+
+                return;
             }
         }
+
+        const raw = getValue(data, realPath);
+
+        if (elm.type === 'checkbox') {
+            if (elm.checked !== raw) elm.checked = !!raw;
+        } else if ('value' in elm) {
+            if (document.activeElement !== elm && elm.value !== raw) elm.value = raw ?? '';
+        } else {
+            if (elm.textContent !== raw) elm.textContent = raw ?? '';
+        }
+
+        // elm.removeAttribute("data-binding")
+    }
+
+    function bindElement(el, path, data, mode, dataSignalStoreKey) {
+        let realPath = path;
+
+        let customEventHandlerType = null;
+        let customEventFunc = null;
+        let customEventFuncData = null;
+
+        if (Array.isArray(path[0]) && path.every(x => pathIsEvent(x))) {
+            const eventArry = path.find(x => x[0] == "event" || /event\d+/.test(x[0]));
+            const eventpropArry = path.find(x => x[0].startsWith("eventprop"));
+            const funcArry = path.find(x => x[0] == "func" || /func\d+/.test(x[0]));
+            const funcdataArry = path.find(x => x[0].startsWith("funcdata"));
+
+            if (!eventArry || !eventpropArry && !funcArry) return;
+
+            if (eventArry) {
+                if (eventArry[1].indexOf("'") != -1 || eventArry[1].indexOf('"') != -1) {
+                    customEventHandlerType = eventArry[1];
+                } else {
+                    customEventHandlerType = getValue(data, eventArry[1]);
+                }
+
+                customEventHandlerType = customEventHandlerType.replaceAll("'", "");
+            }
+
+            if (eventpropArry) {
+                realPath = eventpropArry[1];
+            }
+
+            if (funcArry) {
+                if (funcArry[1].indexOf("'") != -1 || funcArry[1].indexOf('"') != -1) {
+                    customEventFunc = funcArry[1];
+                } else {
+                    customEventFunc = getValue(data, funcArry[1]);
+                }
+
+                if (funcdataArry) {
+                    if (funcdataArry[1].indexOf("[") != -1) {
+                        customEventFuncData = parseArraySafe(funcdataArry[1]);
+                    } else if (funcdataArry[1].indexOf("{") != -1) {
+                        customEventFuncData = parseObjectSafe(funcdataArry[1]);
+                    }
+                    else {
+                        customEventFuncData = getValue(data, funcdataArry[1]);
+                    }
+                    var aa = bindSmartEventFromString(el, customEventHandlerType, customEventFunc, customEventFuncData, true);
+                } else {
+                    var aa = bindSmartEventFromString(el, customEventHandlerType, customEventFunc, data);
+                }
+
+                return;
+            }
+        }
+
         //One-Way
         if (mode === 'One-Way') {
-            updateElement(el, path, data);
+            updateElement(el, realPath, data);
             return;
         }
 
         // Data → Element: Two-Way veya herhangi bir DataToElement modu
         if (mode === 'Two-Way' || mode.endsWith('DataToElement')) {
-            createEffect(() => updateElement(el, path, data), el, dataSignalStoreKey);
+            createEffect(() => updateElement(el, realPath, data), el, dataSignalStoreKey);
         }
         // Element → Data: Two-Way veya ElementToData
         if (mode === 'Two-Way' || mode.endsWith('ElementToData')) {
             // if (customEventHandlerType == null) {
-            updateElement(el, path, data);
+            updateElement(el, realPath, data);
             // }
 
-            if (!IsSettableValue(el, path)) {
+            if (!IsSettableValue(el, realPath)) {
                 return;
             }
 
@@ -1744,23 +2116,64 @@
                 const val = el.type === 'checkbox' ? el.checked : e.target.value;
                 if (el.type === 'number') val = Number(val);
                 if (el.type === 'date') val = new Date(val);
-                if (path.includes("{:") && path.endsWith("}")) {
-                    const [attr, realPath] = parseAttributeBinding(path);
-                    path = realPath;
+
+                if (Array.isArray(realPath)) {
+                    let pth = realPath[1];
+                    setValue(data, pth, val);
+                } else {
+                    setValue(data, realPath, val);
                 }
-                setValue(data, path, val);
             });
         }
-    }
-    function applyBindingToElement(el, path, data, mode, dataSignalStoreKey) {
-        const bindings = path.split(/,(?![^{]*})/).map((b) => b.trim());
 
-        bindings.forEach((binding) => {
+    }
+
+    function applyBindingToElement(el, path, data, mode, isTemplate, dataSignalStoreKey) {
+        const bindings = parseObjectKeyValue(path); //path.split(/,(?![^{]*})/).map((b) => b.trim());
+
+        let [events, others] = bindings.reduce((acc, pair) => {
+            // özel key seti
+            if (pathIsEvent(pair)) {
+                let num = Number.parseInt(pair[0][pair[0].length - 1])
+
+                if (!num) {
+                    num = 0;
+                }
+
+                if (!acc[0].has(num)) {
+                    acc[0].set(num, []);
+                }
+
+                acc[0].get(num).push(pair);
+            } else {
+                if (pair[0] == "SubData") return acc;
+
+                acc[1].push(pair); // 2. grup (others)
+            }
+
+            return acc;
+        },
+            [new Map(), []] // başlangıç: iki boş array
+        );
+
+        events = Array.from(events.values());
+        others = Array.from(others.values());
+
+
+        events.forEach((binding) => {
             bindElement(el, binding, data, mode, dataSignalStoreKey);
         });
+
+        others.forEach((binding) => {
+            bindElement(el, binding, data, mode, dataSignalStoreKey);
+        });
+
+        if (isTemplate) {
+            el.removeAttribute("data-binding");
+        }
     }
 
-    function dataBindingToElement(dataSignalStoreKey, element, data, bindingType, index = null) {
+    function dataBindingToElement(dataSignalStoreKey, element, data, bindingType, renderEvent, isTemplate, index = null) {
         if (!element) return null;
 
         if (bindingType == undefined || bindingType.trim() == "") {
@@ -1772,11 +2185,46 @@
             const nodes = element instanceof HTMLTemplateElement
                 ? element.content.querySelectorAll('[data-binding]')
                 : element.querySelectorAll('[data-binding]');
-            nodes.forEach(el => dataBindingToElement(dataSignalStoreKey, el, data, bindingType, index));
+
+            // const nodes =GetElementByFirstLevelAttribute(element,'data-binding');
+
+            nodes.forEach(el => {
+                dataBindingToElement(dataSignalStoreKey, el, data, bindingType, renderEvent, isTemplate, index);
+
+                if (isTemplate) {
+                    el.removeAttribute("data-binding");
+                }
+            });
+
             return;
         }
 
         if (index !== null && Array.isArray(data)) {
+            const inpath = element.getAttribute && element.getAttribute('data-binding');
+            // const bindings = inpath.split(/,(?![^{]*})/).map((b) => b.trim());
+            //Burası değiştirildi.
+            // const bindings = inpath.split(/,(?=(?:[^']*'[^']*')*[^']*$)(?=(?:[^\[\]]*\[[^\[\]]*\])*[^\[\]]*$)/).map((b) => b.trim());
+            const bindings = parseObjectKeyValue(inpath);
+
+            if (bindingType == 'One-Way') {
+                bindings.forEach((binding) => {
+                    let dt = data[index];
+                    if (renderEvent && renderEvent.beforeRender) {
+                        const br = resolveFunction(renderEvent.beforeRender);
+                        br(element, binding, dt);
+                    }
+
+                    updateElement(element, binding, dt);
+
+                    if (renderEvent && renderEvent.afterRender) {
+                        const ar = resolveFunction(renderEvent.afterRender);
+                        ar(element, binding, dt);
+                    }
+                });
+
+                return;
+            }
+
             const dataSignalStore = dui.getSignalStore(dataSignalStoreKey);
             const signals = getSignalsMap(dataSignalStore, data);
             const sig = signals.get(index);
@@ -1786,7 +2234,21 @@
             }
 
             createEffect(() => {
-                updateElement(element, "", sig.get());
+                bindings.forEach((binding) => {
+                    let dt = sig.get();
+
+                    if (renderEvent && renderEvent.beforeRender) {
+                        const br = resolveFunction(renderEvent.beforeRender);
+                        br(element, binding, dt);
+                    }
+
+                    updateElement(element, binding, dt);
+
+                    if (renderEvent && renderEvent.afterRender) {
+                        const ar = resolveFunction(renderEvent.afterRender);
+                        ar(element, binding, dt);
+                    }
+                });
             }, element, dataSignalStoreKey);
             return;
         }
@@ -1794,7 +2256,51 @@
         // Standart DOM elementte: alt binding noktalarını bul
         const nodes = element.querySelectorAll('[data-binding]');
         if (nodes.length) {
-            nodes.forEach(el => dataBindingToElement(dataSignalStoreKey, el, data, bindingType, index));
+            const inpath = element.getAttribute && element.getAttribute('data-binding');
+            let inData = null, isDataArry = false;
+
+            if (inpath) {
+                const aryd = parseObjectKeyValue(inpath);
+                const adstr = aryd.find(x => x[0] == "SubData");
+                if (adstr) {
+                    inData = getValue(data, adstr[1]);
+                    isDataArry = isArrayLike(inData);
+                }
+            }
+
+            nodes.forEach((el, i) => {
+                if (inData) {
+                    if (isDataArry) {
+                        dataBindingToElement(dataSignalStoreKey, el, inData[i], bindingType, renderEvent, isTemplate, index);
+                        return;
+                    }
+
+                    dataBindingToElement(dataSignalStoreKey, el, inData, bindingType, renderEvent, isTemplate, index);
+                    return;
+                }
+
+                dataBindingToElement(dataSignalStoreKey, el, data, bindingType, renderEvent, isTemplate, index);
+            });
+
+            if (!inpath) return;
+
+            const inmode = element.getAttribute('data-binding-way') || bindingType;
+            if (renderEvent && renderEvent.beforeRender) {
+                const br = resolveFunction(renderEvent.beforeRender);
+                br(element, inpath, data);
+            }
+
+            applyBindingToElement(element, inpath, data, inmode, isTemplate, dataSignalStoreKey);
+
+            if (renderEvent && renderEvent.afterRender) {
+                const ar = resolveFunction(renderEvent.afterRender);
+                ar(element, inpath, data);
+            }
+
+            if (isTemplate) {
+                element.removeAttribute("data-binding");
+            }
+            // element.removeAttribute("data-binding");
             return;
         }
 
@@ -1802,32 +2308,58 @@
         const path = element.getAttribute && element.getAttribute('data-binding');
         if (!path) return;
 
-        onDemandSignal(dataSignalStoreKey, path, data, false);
-
         const mode = element.getAttribute('data-binding-way') || bindingType;
-        applyBindingToElement(element, path, data, mode, dataSignalStoreKey);
+
+        if (mode != 'One-Way') {
+            onDemandSignal(dataSignalStoreKey, path, data, false);
+        }
+
+        if (renderEvent && renderEvent.beforeRender) {
+            const br = resolveFunction(renderEvent.beforeRender);
+            br(element, path, data);
+        }
+
+        applyBindingToElement(element, path, data, mode, isTemplate, dataSignalStoreKey);
+
+        if (renderEvent && renderEvent.afterRender) {
+            const ar = resolveFunction(renderEvent.afterRender);
+            ar(element, path, data);
+        }
     }
+
     //#endregion ---------------- UI Data Binding -----------------------
     //#region ------------------- UI Template ---------------------------
-    function uiRender({ data, bindingType = 'One-Way' }, options = null, dataSignalStoreKey = null) {
+    function uiRender({ data, bindingType = 'One-Way', beforeRender, afterRender }, options = null, dataSignalStoreKey = null) {
         let _dataSignalStoreKey = null;
 
         if (dataSignalStoreKey) {
             _dataSignalStoreKey = dataSignalStoreKey
         }
 
-        if (options && typeof options == "object") {
-            if (options.data == null) {
-                options.data = data;
-            }
+        if (!_dataSignalStoreKey && data) {
+            _dataSignalStoreKey = addOjectHash(data);
+            createSignalScope(_dataSignalStoreKey);
+        }
 
-            if (!_dataSignalStoreKey) {
-                if (options.data) {
-                    _dataSignalStoreKey = addOjectHash(options.data);
-                    createSignalScope(_dataSignalStoreKey);
-                }
-            } else {
-                options.dataSignalStoreKey = _dataSignalStoreKey;
+        let renderEvent;
+
+        if (beforeRender || afterRender) {
+            renderEvent = {};
+            if (beforeRender) {
+                renderEvent.beforeRender = beforeRender;
+            }
+            if (afterRender) {
+                renderEvent.afterRender = afterRender;
+            }
+        }
+
+        for (const element of this.elements) {
+            dataBindingToElement(_dataSignalStoreKey, element, data, bindingType, renderEvent, false);
+        }
+
+        if (options && typeof options == "object") {
+            if (dataSignalStoreKey && !options.dataSignalStoreKey) {
+                options.dataSignalStoreKey = dataSignalStoreKey;
             }
 
             if (options.bindingType == null) {
@@ -1837,25 +2369,16 @@
             if (options.additionType == null) {
                 options.additionType = "append";
             }
-
+            ////Burası Eklendi
             renderTemplate(this, options);
-            return this;
-        }
-
-        if (!_dataSignalStoreKey && data) {
-            _dataSignalStoreKey = addOjectHash(data);
-            createSignalScope(_dataSignalStoreKey);
-        }
-
-        for (const element of this.elements) {
-            dataBindingToElement(_dataSignalStoreKey, element, data, bindingType);
         }
 
         return this;
     }
 
     function getTemplateFromTemplates(templateName, options) {
-        let inTemplate = options.template, inData = options.data, inBindingType = options.bindingType, inAdditionType = options.additionType, inTemplateFromInput = options.templateFromInput;
+        let inTemplate = options.template, inData = options.data, inBindingType = options.bindingType, inAdditionType = options.additionType
+            , inTemplateFromInput = options.templateFromInput, beforeRender = options.beforeRender, afterRender = options.afterRender;
         let inMainTemplate = options.templates[templateName];
 
         if (!inMainTemplate) {
@@ -1864,7 +2387,9 @@
                 inData,
                 inBindingType,
                 inAdditionType,
-                inTemplateFromInput
+                inTemplateFromInput,
+                beforeRender,
+                afterRender
             };
         }
 
@@ -1888,12 +2413,22 @@
             inTemplateFromInput = inMainTemplate.templateFromInput;
         }
 
+        if (inMainTemplate.beforeRender) {
+            beforeRender = inMainTemplate.beforeRender;
+        }
+
+        if (inMainTemplate.afterRender) {
+            afterRender = inMainTemplate.afterRender;
+        }
+
         return {
             inTemplate,
             inData,
             inBindingType,
             inAdditionType,
-            inTemplateFromInput
+            inTemplateFromInput,
+            beforeRender,
+            afterRender
         };
     }
 
@@ -1902,7 +2437,18 @@
             return;
         }
 
-        let inTemplate = options.template, inData = options.data, inBindingType = options.bindingType, inAdditionType = options.additionType, inTemplateFromInput = options.templateFromInput;
+        let inTemplate = options.template, inData = options.data, inBindingType = options.bindingType, inAdditionType = options.additionType
+            , inTemplateFromInput = options.templateFromInput, renderEvent;
+
+        if (options.beforeRender || options.afterRender) {
+            renderEvent = {};
+            if (options.beforeRender) {
+                renderEvent.beforeRender = options.beforeRender;
+            }
+            if (options.afterRender) {
+                renderEvent.afterRender = options.afterRender;
+            }
+        }
 
         if (typeof options.templates == "object" && isPlainObject(options.templates)) {
 
@@ -1917,9 +2463,20 @@
             inBindingType = inMainTemplate.inBindingType;
             inAdditionType = inMainTemplate.inAdditionType;
             inTemplateFromInput = inMainTemplate.inTemplateFromInput;
+
+            if (inMainTemplate.beforeRender || inMainTemplate.afterRender) {
+                if (!renderEvent) renderEvent = {};
+
+                if (inMainTemplate.beforeRender) {
+                    renderEvent.beforeRender = inMainTemplate.beforeRender;
+                }
+                if (inMainTemplate.afterRender) {
+                    renderEvent.afterRender = inMainTemplate.afterRender;
+                }
+            }
         }
 
-        let mTemplate = processTemplate(inTemplate, inData, inBindingType, inAdditionType, inTemplateFromInput, options);
+        let mTemplate = processTemplate(inTemplate, inData, inBindingType, inAdditionType, inTemplateFromInput, renderEvent, options);
 
         if (mTemplate) {
             for (const element of t.elements) {
@@ -1932,6 +2489,8 @@
                 } else if (inAdditionType == "innerHTML") {
                     element.innerHTML = "";
                     element.append(mTemplate.content);
+                } else if (inAdditionType == "outerHTML") {
+                    element.outerHTML = mTemplate.content;
                 } else if (inAdditionType == "textContent") {
                     element.textContent = mTemplate.content.textContent;
                 }
@@ -1939,7 +2498,7 @@
         }
     }
 
-    function processTemplate(template, data, bindingType, additionType, templateFromInput, options) {
+    function processTemplate(template, data, bindingType, additionType, templateFromInput, renderEvent, options) {
         let mTemplate = parseTemplate(template, templateFromInput);
 
         if (!mTemplate) {
@@ -1956,7 +2515,7 @@
             dataSignalStoreKey = options.dataSignalStoreKey;
         }
 
-        dataBindingToTemplate(dataSignalStoreKey, mTemplate, data, bindingType, additionType, templateFromInput, options);
+        dataBindingToTemplate(dataSignalStoreKey, mTemplate, data, bindingType, additionType, templateFromInput, renderEvent, options);
 
         return mTemplate;
     }
@@ -1971,29 +2530,37 @@
         return tmplelm;
     }
 
-    function dataBindingToTemplate(dataSignalStoreKey, template, data, bindingType, additionType, templateFromInput, options) {
-        if (data == null || !template.content.querySelector('[data-binding]')) {
-            parseNestedTemplate(template, data, bindingType, additionType, templateFromInput, options);
+    function dataBindingToTemplate(dataSignalStoreKey, template, data, bindingType, additionType, templateFromInput, renderEvent, options) {
+        ////Burası Eklendi.20251020-1407
+        //if (data == null || !template.content.querySelector('[data-binding]')) {
+        if (data == null) {
+            parseNestedTemplate(template, data, bindingType, additionType, templateFromInput, renderEvent, options);
             return;
         }
 
         if (isArrayLike(data)) {
-            addOjectHash(data);
+            // addOjectHash(data);
+            ////Burası kapatıldı.
+            // makeReactiveArray(dataSignalStoreKey, data, null, null);
             const df = document.createDocumentFragment();
             var templateClone = template.cloneNode(true);
             for (let i = 0; i < data.length; i++) {
                 const tmp = templateClone.cloneNode(true);
-
-                reactiveSignalProperty(dataSignalStoreKey, data, i, false);
-                // Eğer context PRIMITIVE ise index ile signal bağla
-                if (typeof data[i] !== "object" || data[i] === null) {
-                    dataBindingToElement(dataSignalStoreKey, tmp, data, bindingType, i); // primitive branch
-                } else {
-                    // Eğer context OBJECT ise, doğrudan context olarak geçir (eski yol)
-                    dataBindingToElement(dataSignalStoreKey, tmp, data[i], bindingType); // object branch
+                ////Burası Eklendi.20251020-1407
+                if (template.content.querySelector('[data-binding]')) {
+                    if (bindingType != 'One-Way') {
+                        ////false yapıldı.
+                        reactiveSignalProperty(dataSignalStoreKey, data, i, false);
+                    }
+                    // Eğer context PRIMITIVE ise index ile signal bağla
+                    if (typeof data[i] !== "object" || data[i] === null) {
+                        dataBindingToElement(dataSignalStoreKey, tmp, data, bindingType, renderEvent, true, i); // primitive branch
+                    } else {
+                        // Eğer context OBJECT ise, doğrudan context olarak geçir (eski yol)
+                        dataBindingToElement(dataSignalStoreKey, tmp, data[i], bindingType, renderEvent, true); // object branch
+                    }
                 }
-
-                parseNestedTemplate(tmp, data[i], bindingType, additionType, templateFromInput, options)
+                parseNestedTemplate(tmp, data[i], bindingType, additionType, templateFromInput, renderEvent, options)
 
                 if (additionType == "prepend") {
                     df.prepend(tmp.content);
@@ -2004,6 +2571,8 @@
                 } else {
                     df.appendChild(tmp.content);
                 }
+                ////Burası Eklendi.
+                tmp.removeAttribute("data-binding");
             }
 
             template.innerHTML = "";
@@ -2011,35 +2580,54 @@
             return;
         }
 
-        dataBindingToElement(dataSignalStoreKey, template, data, bindingType);
-        parseNestedTemplate(template, data, bindingType, additionType, templateFromInput, options)
+        ////Burası Eklendi.20251020-1407
+        if (!template.content.querySelector('[data-binding]')) {
+            parseNestedTemplate(template, data, bindingType, additionType, templateFromInput, renderEvent, options);
+            return;
+        }
+
+        dataBindingToElement(dataSignalStoreKey, template, data, bindingType, renderEvent, true);
+        parseNestedTemplate(template, data, bindingType, additionType, templateFromInput, renderEvent, options)
     }
 
-    function parseNestedTemplate(template, templateData, bindingType, additionType, templateFromInput, options) {
+    function parseNestedTemplate(template, templateData, bindingType, additionType, templateFromInput, renderEvent, options) {
         if (template.content.querySelector('[data-template]')) {
             const nodes = template.content.querySelectorAll('[data-template]');
 
             for (let i = 0; i < nodes.length; i++) {
                 const tmp_string = nodes[i].getAttribute('data-template');
-                const bindings = tmp_string.split(/,(?![^{]*})/).map((b) => b.trim());
+                const bindings = parseObjectKeyValue(tmp_string);
 
-                let dt_str = null, opt_str = null, pt_str = null, ts_str = null, inTemplate = options.template
-                    , inData = templateData, inBindingType = bindingType, inAdditionType = additionType, inTemplateFromInput = templateFromInput;
+                let dt_str = null, opt_str = null, pt_str = null, ts_str = null, beforeRender_str = null, afterRender_str = null, inTemplate = options.template
+                    , inData = templateData, inBindingType = bindingType, inAdditionType = additionType, inTemplateFromInput = templateFromInput, inRenderEvent;
 
-                for (let itm of bindings) {
-                    if (itm.startsWith("data")) {
-                        dt_str = itm;
-                        continue;
-                    } else if (itm.startsWith("options")) {
-                        opt_str = itm;
-                        continue;
-                    } else if (itm.startsWith("#") || itm.startsWith(".")) {
-                        pt_str = itm;
-                        continue;
+                if (renderEvent && (renderEvent.beforeRender || renderEvent.afterRender)) {
+                    inRenderEvent = {};
+                    if (renderEvent.beforeRender) {
+                        inRenderEvent.beforeRender = renderEvent.beforeRender;
                     }
-
-                    ts_str = itm;
+                    if (renderEvent.afterRender) {
+                        inRenderEvent.afterRender = renderEvent.afterRender;
+                    }
                 }
+
+                bindings.forEach(itm => {
+                    if (itm[0] == "") {
+                        if (itm[1].startsWith("#") || itm[1].startsWith(".")) {
+                            pt_str = itm[1];
+                            return;
+                        }
+                        ts_str = itm[1]
+                    } else if (itm[0] == "data") {
+                        dt_str = itm[1];
+                    } else if (itm[0] == "options") {
+                        opt_str = itm[1];
+                    } else if (itm[0] == "beforeRender") {
+                        beforeRender_str = itm[1];
+                    } else if (itm[0] == "afterRender") {
+                        afterRender_str = itm[1];
+                    }
+                });
 
                 if (ts_str && options.templates && isPlainObject(options.templates) && options.templates[ts_str]) {
                     let inMainTemplate = getTemplateFromTemplates(ts_str, options);
@@ -2049,6 +2637,17 @@
                     inBindingType = inMainTemplate.inBindingType;
                     inAdditionType = inMainTemplate.inAdditionType;
                     inTemplateFromInput = inMainTemplate.inTemplateFromInput;
+
+                    if (inMainTemplate.beforeRender || inMainTemplate.afterRender) {
+                        if (!inRenderEvent) inRenderEvent = {};
+                        if (inMainTemplate.beforeRender) {
+                            inRenderEvent.beforeRender = inMainTemplate.beforeRender;
+                        }
+
+                        if (inMainTemplate.afterRender) {
+                            inRenderEvent.afterRender = inMainTemplate.afterRender;
+                        }
+                    }
                 }
 
 
@@ -2066,6 +2665,17 @@
                     if (toptions.templateFromInput) {
                         inTemplateFromInput = toptions.templateFromInput;
                     }
+
+                    if (toptions.beforeRender || toptions.afterRender) {
+                        if (!inRenderEvent) inRenderEvent = {};
+                        if (toptions.beforeRender) {
+                            inRenderEvent.beforeRender = toptions.beforeRender;
+                        }
+
+                        if (toptions.afterRender) {
+                            inRenderEvent.afterRender = toptions.afterRender;
+                        }
+                    }
                 }
 
                 if (pt_str) {
@@ -2073,26 +2683,79 @@
                 }
 
                 if (dt_str) {
-                    let [dt_attr, dt_path] = parseAttributeBinding(dt_str);
+                    inData = getValue(inData, dt_str);
+                }
 
-                    if (dt_path) {
-                        inData = getValue(inData, dt_path);
+                if (beforeRender_str || afterRender_str) {
+                    if (!inRenderEvent) inRenderEvent = {};
+
+                    if (beforeRender_str) {
+                        inRenderEvent.beforeRender = beforeRender_str;
+                    }
+
+                    if (afterRender_str) {
+                        inRenderEvent.afterRender = afterRender_str;
                     }
                 }
 
-                let nestedtemplate = processTemplate(inTemplate, inData, inBindingType, inAdditionType, templateFromInput, options);
+                let nestedtemplate = processTemplate(inTemplate, inData, inBindingType, inAdditionType, templateFromInput, inRenderEvent, options);
 
                 if (inAdditionType == "prepend") {
-                    nodes[i].prepend(nestedtemplate.content);
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].content.prepend(nestedtemplate.content);
+                    } else {
+                        nodes[i].prepend(nestedtemplate.content);
+                    }
                 } else if (inAdditionType == "append") {
-                    nodes[i].append(nestedtemplate.content);
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].content.append(nestedtemplate.content);
+                    } else {
+                        nodes[i].append(nestedtemplate.content);
+                    }
+                } else if (inAdditionType == "before") {
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].content.before(nestedtemplate.content);
+                    } else {
+                        nodes[i].before(nestedtemplate.content);
+                    }
+                } else if (inAdditionType == "after") {
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].content.after(nestedtemplate.content);
+                    } else {
+                        nodes[i].after(nestedtemplate.content);
+                    }
                 } else if (inAdditionType == "appendChild") {
-                    nodes[i].appendChild(nestedtemplate.content);
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].content.appendChild(nestedtemplate.content);
+                    } else {
+                        nodes[i].appendChild(nestedtemplate.content);
+                    }
                 } else if (inAdditionType == "innerHTML") {
-                    nodes[i].innerHTML = "";
-                    nodes[i].append(nestedtemplate.content);
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].innerHTML = "";
+                        nodes[i].content.append(nestedtemplate.content);
+                    } else {
+                        nodes[i].innerHTML = "";
+                        nodes[i].append(nestedtemplate.content);
+                    }
+                } else if (inAdditionType == "outerHTML") {
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].outerHTML = nestedtemplate.innerHTML;
+                    } else {
+                        nodes[i].outerHTML = nestedtemplate.innerHTML;
+                    }
                 } else if (inAdditionType == "textContent") {
-                    nodes[i].textContent = nestedtemplate.content.textContent;
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].content.textContent = nestedtemplate.content.textContent;
+                    } else {
+                        nodes[i].textContent = nestedtemplate.content.textContent;
+                    }
+                } else if (inAdditionType == "replaceWith") {
+                    if (nodes[i].tagName == "TEMPLATE") {
+                        nodes[i].replaceWith(nestedtemplate);
+                    } else {
+                        nodes[i].replaceWith(nestedtemplate.content);
+                    }
                 }
 
             };
