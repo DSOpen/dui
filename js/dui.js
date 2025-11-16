@@ -1,6 +1,6 @@
 !(function (global, factory) {
     "use strict";
-    //VS
+
     if (typeof module === "object" && typeof module.exports === "object") {
         module.exports = global.document
             ? factory(global, true)
@@ -104,9 +104,16 @@
         //#region ------------------- SignalBasedReactiveDataLink -----------
         uiRender: uiRender,
         //#endregion ---------------- SignalBasedReactiveDataLink -----------
+        bse(eventType, fn) {
+            const prms = Array.prototype.slice.call(arguments, 2);
+            return bindSmartEvent(this.elements, eventType, fn, prms);
+        },
         bindSmartEvent(eventType, fn) {
             const prms = Array.prototype.slice.call(arguments, 2);
             return bindSmartEvent(this.elements, eventType, fn, prms);
+        },
+        bseFromString(eventType, funcStr, values, isparam, root) {
+            return bindSmartEventFromString(this.elements, eventType, funcStr, values, isparam, root);
         },
         bindSmartEventFromString(eventType, funcStr, values, isparam, root) {
             return bindSmartEventFromString(this.elements, eventType, funcStr, values, isparam, root);
@@ -115,6 +122,130 @@
             off(this.elements, types, fn);
             return this;
         },
+        //#region Test Et
+        forEach(callback) {
+            if (typeof callback !== "function") {
+                throw new TypeError("callback bir fonksiyon olmalıdır.");
+            }
+
+            const items = this.elements;
+            for (let i = 0; i < items.length; i++) {
+                const el = items[i];
+                const result = callback.call(i, el, el);
+                if (result === false) break;
+            }
+
+            return this;
+        },
+
+        eq(index) {
+            return index >= 0
+                ? dui.select(this.elements[index] || [])
+                : dui.select(this.elements[this.elements.length + index] || []);
+        },
+
+        find(selector) {
+            const results = [];
+            this.elements.forEach((el, i) => results.push(...el.querySelectorAll(selector)));
+            return dui.select(results);
+        },
+
+        parent() {
+            const parents = [];
+            this.elements.forEach((el, i) => {
+                if (el.parentElement && !parents.includes(el.parentElement)) {
+                    parents.push(el.parentElement);
+                }
+            });
+            return dui.select(parents);
+        },
+
+        children() {
+            const children = [];
+            this.elements.forEach((el, i) => children.push(...el.children));
+            return dui.select(children);
+        },
+
+        first() {
+            return this.elements.length > 0 ? dui.select(this.elements[0]) : dui.select([]);
+        },
+
+        last() {
+            return this.elements.length > 0 ? dui.select(this.elements[this.elements.length - 1]) : dui.select([]);
+        },
+
+        next() {
+            const nextElements = [];
+            this.elements.forEach((el, i) => el.nextElementSibling && nextElements.push(el.nextElementSibling));
+            return dui.select(nextElements);
+        },
+
+        prev() {
+            const prevElements = [];
+            this.elements.forEach((el, i) => el.previousElementSibling && prevElements.push(el.previousElementSibling));
+            return dui.select(prevElements);
+        },
+
+        append(content) {
+            this.elements.forEach((el, i) => {
+                if (typeof content === 'string') {
+                    el.insertAdjacentHTML('beforeend', content);
+                } else if (content instanceof Element) {
+                    el.appendChild(content);
+                } else if (content instanceof dui) {
+                    content.elements.forEach((child, ci) => el.appendChild(child));
+                }
+            });
+
+            return this;
+        },
+
+        after(content) {
+            this.elements.forEach((el, i) => {
+                const parent = el.parentNode;
+                if (!parent) return;
+
+                if (typeof content === 'string') {
+                    el.insertAdjacentHTML('afterend', content);
+                } else if (content instanceof Element) {
+                    parent.insertBefore(content, el.nextSibling);
+                } else if (content instanceof dui) {
+                    content.elements.forEach((child, ci) => {
+                        parent.insertBefore(child, el.nextSibling);
+                    });
+                }
+            });
+
+            return this;
+        },
+
+        before(content) {
+            this.elements.forEach((el, i) => {
+                const parent = el.parentNode;
+                if (!parent) return;
+
+                if (typeof content === 'string') {
+                    el.insertAdjacentHTML('beforebegin', content);
+                } else if (content instanceof Element) {
+                    parent.insertBefore(content, el);
+                } else if (content instanceof dui) {
+                    content.elements.forEach((child, ci) => {
+                        parent.insertBefore(child, el);
+                    });
+                }
+            });
+
+            return this;
+        },
+
+        clone() {
+            const clones = [];
+            this.elements.forEach((el, i) => {
+                clones.push(el.cloneNode(true));
+            });
+            return dui.select(clones);
+        },
+        //#endregion Test Et
         html(value) {
             if (value === undefined) return this.elements[0]?.innerHTML;
             return this.elements.forEach((elm, i) => elm.innerHTML = value);
@@ -1818,22 +1949,25 @@
         });
     }
 
-    dui.toSignalRaw = toSignalRaw;
-    function toSignalRaw(obj, dataSignalStore) {
-        if (obj === null || typeof obj !== "object") return obj;
-
-        const raw = Array.isArray(obj) ? [] : {};
-        const signals = dataSignalStore.signalStore.get(obj);
-
-        if (!signals) return obj; // Reaktif olmayan nesne
-
-        for (const [key, signal] of signals.entries()) {
-            const val = signal.get();
-            raw[key] = toSignalRaw(dataSignalStore, val);
-        }
-
-        return raw;
+    dui.toRaw = toRaw;
+    function toRaw(obj) {
+        return JSON.parse(JSON.stringify(obj));
     }
+    // function toSignalRaw(obj, dataSignalStore) {
+    //     if (obj === null || typeof obj !== "object") return obj;
+
+    //     const raw = Array.isArray(obj) ? [] : {};
+    //     const signals = dataSignalStore.signalStore.get(obj);
+
+    //     if (!signals) return obj; // Reaktif olmayan nesne
+
+    //     for (const [key, signal] of signals.entries()) {
+    //         const val = signal.get();
+    //         raw[key] = toSignalRaw(dataSignalStore, val);
+    //     }
+
+    //     return raw;
+    // }
 
     dui.ref = ref;
     function ref(initialValue) {
