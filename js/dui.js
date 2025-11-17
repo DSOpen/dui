@@ -104,6 +104,8 @@
         //#region ------------------- SignalBasedReactiveDataLink -----------
         uiRender: uiRender,
         //#endregion ---------------- SignalBasedReactiveDataLink -----------
+
+        //#region Event Handling - Olay Yönetimi
         bse(eventType, fn) {
             const prms = Array.prototype.slice.call(arguments, 2);
             return bindSmartEvent(this.elements, eventType, fn, prms);
@@ -122,7 +124,9 @@
             off(this.elements, types, fn);
             return this;
         },
-        //#region Test Et
+        //#endregion Event Handling - Olay Yönetimi
+
+        //#region Iteration
         forEach(callback) {
             if (typeof callback !== "function") {
                 throw new TypeError("callback bir fonksiyon olmalıdır.");
@@ -137,19 +141,19 @@
 
             return this;
         },
+        //#endregion Iteration
 
+        //#region DOM Traversal - DOM İçinde Gezinme
         eq(index) {
             return index >= 0
                 ? dui.select(this.elements[index] || [])
                 : dui.select(this.elements[this.elements.length + index] || []);
         },
-
         find(selector) {
             const results = [];
             this.elements.forEach((el, i) => results.push(...el.querySelectorAll(selector)));
             return dui.select(results);
         },
-
         parent() {
             const parents = [];
             this.elements.forEach((el, i) => {
@@ -159,7 +163,6 @@
             });
             return dui.select(parents);
         },
-
         children() {
             const children = [];
             this.elements.forEach((el, i) => children.push(...el.children));
@@ -185,7 +188,30 @@
             this.elements.forEach((el, i) => el.previousElementSibling && prevElements.push(el.previousElementSibling));
             return dui.select(prevElements);
         },
+        //#endregion DOM Traversal - DOM İçinde Gezinme
 
+        //#region Class and Style Utilities - Sınıf ve Görünürlük Yardımcıları
+        toggleClass(className) {
+            this.elements.forEach((el, i) => el.classList.toggle(className));
+             return this;
+        },
+
+        hasClass(className) {
+            return this.elements[0] ? this.elements[0].classList.contains(className) : false;
+        },
+
+        addClass(className) {
+            this.elements.forEach((el, i) => el.classList.add(className));
+            return this;
+        },
+
+        removeClass(className) {
+            this.elements.forEach((el, i) => el.classList.remove(className));
+            return this;
+        },
+        //#endregion Class and Style Utilities - Sınıf ve Görünürlük Yardımcıları
+
+        //#region DOM Manipulation - DOM Üzerinde Değişiklik Yapma
         append(content) {
             this.elements.forEach((el, i) => {
                 if (typeof content === 'string') {
@@ -199,26 +225,6 @@
 
             return this;
         },
-
-        after(content) {
-            this.elements.forEach((el, i) => {
-                const parent = el.parentNode;
-                if (!parent) return;
-
-                if (typeof content === 'string') {
-                    el.insertAdjacentHTML('afterend', content);
-                } else if (content instanceof Element) {
-                    parent.insertBefore(content, el.nextSibling);
-                } else if (content instanceof dui) {
-                    content.elements.forEach((child, ci) => {
-                        parent.insertBefore(child, el.nextSibling);
-                    });
-                }
-            });
-
-            return this;
-        },
-
         before(content) {
             this.elements.forEach((el, i) => {
                 const parent = el.parentNode;
@@ -237,7 +243,24 @@
 
             return this;
         },
+        after(content) {
+            this.elements.forEach((el, i) => {
+                const parent = el.parentNode;
+                if (!parent) return;
 
+                if (typeof content === 'string') {
+                    el.insertAdjacentHTML('afterend', content);
+                } else if (content instanceof Element) {
+                    parent.insertBefore(content, el.nextSibling);
+                } else if (content instanceof dui) {
+                    content.elements.forEach((child, ci) => {
+                        parent.insertBefore(child, el.nextSibling);
+                    });
+                }
+            });
+
+            return this;
+        },
         clone() {
             const clones = [];
             this.elements.forEach((el, i) => {
@@ -245,7 +268,37 @@
             });
             return dui.select(clones);
         },
-        //#endregion Test Et
+        attr(name, value) {
+            if (value === undefined) return this.elements[0]?.getAttribute(name);
+            this.elements.forEach((el, i) => el.setAttribute(name, value));
+            return this;
+        },
+        removeAttr(name) {
+            this.elements.forEach((el, i) => el.removeAttribute(name));
+            return this;
+        },
+        css(property, value) {
+            if (value === undefined && typeof property === 'string') {
+                return getComputedStyle(this.elements[0])[property];
+            }
+
+            this.elements.forEach(function (elm, i) {
+                if (typeof property === 'object') {
+                    for (let key in property) {
+                        elm.style[key] = property[key];
+                    }
+                } else {
+                    elm.style[property] = value;
+                }
+            });
+
+            return this;
+        },
+        val(value) {
+            if (value === undefined) return this.elements[0] ? this.elements[0].value : null;
+            this.elements.forEach((el, i) => el.value = value);
+            return this;
+        },
         html(value) {
             if (value === undefined) return this.elements[0]?.innerHTML;
             return this.elements.forEach((elm, i) => elm.innerHTML = value);
@@ -254,6 +307,7 @@
             if (value === undefined) return this.elements[0]?.textContent;
             return this.elements.forEach((elm, i) => elm.textContent = value);
         }
+        //#endregion DOM Manipulation - DOM Üzerinde Değişiklik Yapma
     };
 
     dui.mt.init.prototype = dui.mt;
