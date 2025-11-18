@@ -150,164 +150,148 @@
                 : dui.select(this.elements[this.elements.length + index] || []);
         },
         find(selector) {
-            const results = [];
-            this.elements.forEach((el, i) => results.push(...el.querySelectorAll(selector)));
-            return dui.select(results);
+            return find(this.elements, selector);
         },
         parent() {
-            const parents = [];
-            this.elements.forEach((el, i) => {
-                if (el.parentElement && !parents.includes(el.parentElement)) {
-                    parents.push(el.parentElement);
-                }
-            });
-            return dui.select(parents);
+            return parent(this.elements);
         },
         children() {
-            const children = [];
-            this.elements.forEach((el, i) => children.push(...el.children));
-            return dui.select(children);
+            return children(this.elements);
         },
-
         first() {
-            return this.elements.length > 0 ? dui.select(this.elements[0]) : dui.select([]);
+            return first(this.elements);
         },
-
         last() {
-            return this.elements.length > 0 ? dui.select(this.elements[this.elements.length - 1]) : dui.select([]);
+            return last(this.elements);
         },
-
         next() {
-            const nextElements = [];
-            this.elements.forEach((el, i) => el.nextElementSibling && nextElements.push(el.nextElementSibling));
-            return dui.select(nextElements);
+            return next(this.elements);
         },
-
         prev() {
-            const prevElements = [];
-            this.elements.forEach((el, i) => el.previousElementSibling && prevElements.push(el.previousElementSibling));
-            return dui.select(prevElements);
+            return prev(this.elements);
         },
         //#endregion DOM Traversal - DOM İçinde Gezinme
 
         //#region Class and Style Utilities - Sınıf ve Görünürlük Yardımcıları
         toggleClass(className) {
-            this.elements.forEach((el, i) => el.classList.toggle(className));
-             return this;
-        },
-
-        hasClass(className) {
-            return this.elements[0] ? this.elements[0].classList.contains(className) : false;
-        },
-
-        addClass(className) {
-            this.elements.forEach((el, i) => el.classList.add(className));
+            toggleClass(this.elements, className);
             return this;
         },
-
+        hasClass(className) {
+            hasClass(this.elements, className);
+            return this;
+        },
+        hasClassAll(className) {
+            hasClassAll(this.elements, className);
+            return this;
+        },
+        addClass(className) {
+            addClass(this.elements, className);
+            return this;
+        },
         removeClass(className) {
-            this.elements.forEach((el, i) => el.classList.remove(className));
+            removeClass(this.elements, className);
             return this;
         },
         //#endregion Class and Style Utilities - Sınıf ve Görünürlük Yardımcıları
 
         //#region DOM Manipulation - DOM Üzerinde Değişiklik Yapma
         append(content) {
-            this.elements.forEach((el, i) => {
-                if (typeof content === 'string') {
-                    el.insertAdjacentHTML('beforeend', content);
-                } else if (content instanceof Element) {
-                    el.appendChild(content);
-                } else if (content instanceof dui) {
-                    content.elements.forEach((child, ci) => el.appendChild(child));
-                }
-            });
+            append(this.elements, content);
 
             return this;
         },
         before(content) {
-            this.elements.forEach((el, i) => {
-                const parent = el.parentNode;
-                if (!parent) return;
-
-                if (typeof content === 'string') {
-                    el.insertAdjacentHTML('beforebegin', content);
-                } else if (content instanceof Element) {
-                    parent.insertBefore(content, el);
-                } else if (content instanceof dui) {
-                    content.elements.forEach((child, ci) => {
-                        parent.insertBefore(child, el);
-                    });
-                }
-            });
+            before(this.elements, content);
 
             return this;
         },
         after(content) {
-            this.elements.forEach((el, i) => {
-                const parent = el.parentNode;
-                if (!parent) return;
-
-                if (typeof content === 'string') {
-                    el.insertAdjacentHTML('afterend', content);
-                } else if (content instanceof Element) {
-                    parent.insertBefore(content, el.nextSibling);
-                } else if (content instanceof dui) {
-                    content.elements.forEach((child, ci) => {
-                        parent.insertBefore(child, el.nextSibling);
-                    });
-                }
-            });
+            after(this.elements, content);
 
             return this;
         },
         clone() {
-            const clones = [];
-            this.elements.forEach((el, i) => {
-                clones.push(el.cloneNode(true));
-            });
-            return dui.select(clones);
+            return clone(this.elements);
         },
         attr(name, value) {
-            if (value === undefined) return this.elements[0]?.getAttribute(name);
-            this.elements.forEach((el, i) => el.setAttribute(name, value));
+            let result = attr(this.elements, name, value);
+            if (isArrayLike(result)) return result;
+
             return this;
         },
         removeAttr(name) {
-            this.elements.forEach((el, i) => el.removeAttribute(name));
+            removeAttr(this.elements, name);
             return this;
         },
         css(property, value) {
-            if (value === undefined && typeof property === 'string') {
-                return getComputedStyle(this.elements[0])[property];
-            }
-
-            this.elements.forEach(function (elm, i) {
-                if (typeof property === 'object') {
-                    for (let key in property) {
-                        elm.style[key] = property[key];
-                    }
-                } else {
-                    elm.style[property] = value;
-                }
-            });
+            let result = css(this.elements, property, value);
+            if (isArrayLike(result)) return result;
 
             return this;
         },
         val(value) {
-            if (value === undefined) return this.elements[0] ? this.elements[0].value : null;
-            this.elements.forEach((el, i) => el.value = value);
+            let result = val(this.elements, value);
+            if (isArrayLike(result)) return result;
+
             return this;
         },
         html(value) {
-            if (value === undefined) return this.elements[0]?.innerHTML;
-            return this.elements.forEach((elm, i) => elm.innerHTML = value);
+            let result = html(this.elements, value);
+            if (isArrayLike(result)) return result;
+
+            return this;
         },
         text(value) {
-            if (value === undefined) return this.elements[0]?.textContent;
-            return this.elements.forEach((elm, i) => elm.textContent = value);
-        }
+            let result = text(this.elements, value);
+            if (isArrayLike(result)) return result;
+
+            return this;
+        },
         //#endregion DOM Manipulation - DOM Üzerinde Değişiklik Yapma
+
+        //#region Animation and Effects
+        animate(properties, duration = 400, easing = 'linear', useTransition = false) {
+            return animate(this.elements, properties, duration, easing, useTransition);
+        },
+        keyframe(keyframes, options = {}) {
+            keyframe(this.elements, keyframes, options);
+            return this;
+        },
+        fadeIn(duration = 400, displayType = 'block') {
+            return fadeIn(this.elements, duration, displayType);
+        }
+        ,
+        fadeOut(duration = 400) {
+            return fadeOut(this.elements, duration);
+        },
+        stopAnimations() {
+            stopAnimations(this.elements);
+            return this;
+        },
+        slideUp(duration = 400, easing = 'easeInQuad') {
+            return slideUp(this.elements, duration, easing);
+        },
+        slideDown(duration = 400, easing = 'easeOutQuad', displayType = 'block') {
+            return slideDown(this.elements, duration, easing, displayType);
+        },
+        slideToggle(duration = 400, easing = 'easeOutQuad', easingHide = 'easeInQuad', displayType = 'block') {
+            slideToggle(this.elements, duration, easing, easingHide, displayType);
+            return this;
+        },
+        colorTo(property, value, duration = 400, easing = 'linear') {
+            return colorTo(this.elements, property, value, duration, easing);
+        },
+        bgColorTo(value, duration = 400, easing = 'linear') {
+            return bgColorTo(this.elements, value, duration, easing);
+        },
+        textColorTo(value, duration = 400, easing = 'linear') {
+            return textColorTo(this.elements, value, duration, easing);
+        },
+        staggerAnimate(properties, options = {}) {
+            return staggerAnimate(this.elements, properties, options);
+        },
+        //#endregion Animation and Effects
     };
 
     dui.mt.init.prototype = dui.mt;
@@ -335,6 +319,856 @@
     };
 
     dui.commonDataSignalStoreKey = null;
+
+    //#region DOM Traversal - DOM İçinde Gezinme
+    function checkElementToArray(selector) {
+        const elements = [];
+
+        if (isArrayLike(selector)) {
+            return selector;
+        }
+
+        if (selector === window || selector === document || isDomElement(selector)) {
+            if (selector instanceof NodeList || selector instanceof HTMLCollection) {
+                for (let i = 0; i < selector.length; i++) {
+                    elements[i] = selector[i];
+                }
+
+                return elements;
+            }
+
+            elements[0] = selector;
+            return elements;
+        }
+    }
+
+    dui.find = find;
+    function find(elements, selector) {
+        const results = [];
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => results.push(...el.querySelectorAll(selector)));
+        return dui.select(results);
+    }
+
+    dui.parent = parent;
+    function parent(elements) {
+        const parents = [];
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => {
+            if (el.parentElement && !parents.includes(el.parentElement)) {
+                parents.push(el.parentElement);
+            }
+        });
+
+        return dui.select(parents);
+    }
+
+    dui.children = children;
+    function children(elements) {
+        const children = [];
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => children.push(...el.children));
+
+        return dui.select(children);
+    }
+
+    dui.first = first;
+    function first(elements) {
+        elements = checkElementToArray(elements);
+
+        return elements.length > 0 ? dui.select(elements[0]) : dui.select([]);
+    }
+
+    dui.last = last;
+    function last(elements) {
+        elements = checkElementToArray(elements);
+
+        return elements.length > 0 ? dui.select(elements[elements.length - 1]) : dui.select([]);
+    }
+
+    dui.next = next;
+    function next(elements) {
+        const nextElements = [];
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => el.nextElementSibling && nextElements.push(el.nextElementSibling));
+        return dui.select(nextElements);
+    }
+
+    dui.prev = prev;
+    function prev(elements) {
+        const prevElements = [];
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => el.previousElementSibling && prevElements.push(el.previousElementSibling));
+        return dui.select(prevElements);
+    }
+    //#endregion DOM Traversal - DOM İçinde Gezinme
+
+    //#region Class and Style Utilities - Sınıf ve Görünürlük Yardımcıları
+    dui.toggleClass = toggleClass;
+    function toggleClass(elements, className) {
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => el.classList.toggle(className));
+    }
+
+    dui.hasClass = hasClass;
+    function hasClass(elements, className) {
+        elements = checkElementToArray(elements);
+
+        return elements[0] ? elements[0].classList.contains(className) : false;
+    }
+
+    dui.hasClassAll = hasClassAll;
+    function hasClassAll(elements, className) {
+        elements = checkElementToArray(elements);
+
+        for (let i = 0; i < elements.length; i++) {
+            if (!elements[i].classList.contains(className)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    dui.addClass = addClass;
+    function addClass(elements, className) {
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => el.classList.add(className));
+    }
+
+    dui.removeClass = removeClass;
+    function removeClass(elements, className) {
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => el.classList.remove(className));
+    }
+    //#endregion Class and Style Utilities - Sınıf ve Görünürlük Yardımcıları
+
+    //#region DOM Manipulation - DOM Üzerinde Değişiklik Yapma
+    dui.append = append;
+    function append(elements, content) {
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => {
+            if (typeof content === 'string') {
+                el.insertAdjacentHTML('beforeend', content);
+            } else if (content instanceof Element) {
+                el.appendChild(content);
+            } else if (content instanceof dui) {
+                content.elements.forEach((child, ci) => el.appendChild(child));
+            }
+        });
+    }
+
+    dui.before = before;
+    function before(elements, content) {
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => {
+            const parent = el.parentNode;
+            if (!parent) return;
+
+            if (typeof content === 'string') {
+                el.insertAdjacentHTML('beforebegin', content);
+            } else if (content instanceof Element) {
+                parent.insertBefore(content, el);
+            } else if (content instanceof dui) {
+                content.elements.forEach((child, ci) => {
+                    parent.insertBefore(child, el);
+                });
+            }
+        });
+    }
+
+    dui.after = after;
+    function after(elements, content) {
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => {
+            const parent = el.parentNode;
+            if (!parent) return;
+
+            if (typeof content === 'string') {
+                el.insertAdjacentHTML('afterend', content);
+            } else if (content instanceof Element) {
+                parent.insertBefore(content, el.nextSibling);
+            } else if (content instanceof dui) {
+                content.elements.forEach((child, ci) => {
+                    parent.insertBefore(child, el.nextSibling);
+                });
+            }
+        });
+    }
+
+    dui.clone = clone;
+    function clone(elements) {
+        const clones = [];
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => {
+            clones.push(el.cloneNode(true));
+        });
+
+        return dui.select(clones);
+    }
+
+    dui.attr = attr;
+    function attr(elements, name, value) {
+        elements = checkElementToArray(elements);
+
+        if (value === undefined) {
+            const attributes = [];
+            elements.forEach((el, i) => {
+                if (el.hasAttribute(name)) {
+                    attributes.push(el.getAttribute(name));
+                }
+            });
+
+            return attributes;
+        }
+
+        elements.forEach((el, i) => el.setAttribute(name, value));
+    }
+
+    dui.removeAttr = removeAttr;
+    function removeAttr(elements, name) {
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => el.removeAttribute(name));
+    }
+
+    dui.css = css;
+    function css(elements, property, value) {
+        elements = checkElementToArray(elements);
+
+        if (value === undefined && typeof property === 'string') {
+            const styless = [];
+            elements.forEach((el, i) => {
+                styless.push(getComputedStyle(el)[property]);
+            });
+
+            return styless;
+        }
+
+        elements.forEach((el, i) => {
+            if (typeof property === 'object') {
+                for (let key in property) {
+                    el.style[key] = property[key];
+                }
+            } else {
+                el.style[property] = value;
+            }
+        });
+    }
+
+    dui.val = val;
+    function val(elements, value) {
+        elements = checkElementToArray(elements);
+
+        if (value === undefined) {
+            const values = [];
+            elements.forEach((el, i) => {
+                values.push(el.value);
+            });
+
+            return values;
+        }
+
+        elements.forEach((el, i) => el.value = value);
+    }
+
+    dui.html = html;
+    function html(elements, value) {
+        elements = checkElementToArray(elements);
+
+        if (value === undefined) {
+            const values = [];
+            elements.forEach((el, i) => {
+                values.push(el.innerHTML);
+            });
+
+            return values;
+        }
+
+        elements.forEach((el, i) => el.innerHTML = value);
+    }
+
+    dui.text = text;
+    function text(elements, value) {
+        elements = checkElementToArray(elements);
+
+        if (value === undefined) {
+            const values = [];
+            elements.forEach((el, i) => {
+                values.push(el.textContent);
+            });
+
+            return values;
+        }
+
+        elements.forEach((el, i) => el.textContent = value);
+    }
+    //#endregion DOM Manipulation - DOM Üzerinde Değişiklik Yapma
+
+    //#region Animation and Style Utilities - Animasyon ve Stil Yardımcıları
+    const animationRegistry = new WeakMap();
+    const gpuAcceleratedProps = ['transform', 'opacity', 'filter'];
+    const animations = new Set();
+    let rafID = null;
+
+    const Easings = Object.freeze({
+        linear: t => t,
+        easeInQuad: t => t * t,
+        easeOutQuad: t => t * (2 - t),
+        easeInOutQuad: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+        easeInCubic: t => t * t * t,
+        easeOutCubic: t => (--t) * t * t + 1,
+        easeInOutCubic: t => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1,
+        easeInOutExpo: t => t === 0 || t === 1 ? t : t < 0.5 ? Math.pow(2, 20 * t - 10) / 2 : (2 - Math.pow(2, -20 * t + 10)) / 2
+    });
+
+    // Tek bir global RAF loop
+    function _runAnimations() {
+        const toRun = Array.from(animations);
+        animations.clear();
+
+        for (let i = 0; i < toRun.length; i++) {
+            try {
+                toRun[i]();
+            } catch (e) {
+                // İstersen burada global error handler kullanabilirsin
+                console.error('Animation frame error:', e);
+            }
+        }
+
+        if (animations.size > 0) {
+            rafID = requestAnimationFrame(_runAnimations);
+        } else {
+            rafID = null;
+        }
+    }
+
+    function _getStyleValues(el, props) {
+        const gpuProps = Object.keys(props).filter(p =>
+            gpuAcceleratedProps.includes(p)
+        );
+
+        if (gpuProps.length > 0) {
+            el.style.willChange = gpuProps.join(', ');
+        }
+
+        const computed = getComputedStyle(el);
+
+        return {
+            values: Object.fromEntries(
+                Object.entries(props).map(([prop, targetValue]) => {
+                    const cssProp = prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+                    const current = computed.getPropertyValue(cssProp) || '0';
+                    const numericValue = parseFloat(current) || 0;
+                    const unitMatch = current.match(/[a-z%]+$/i);
+                    let unit = unitMatch ? unitMatch[0] : '';
+
+                    if (!unit && prop !== 'opacity') {
+                        unit = 'px';
+                    }
+
+                    const targetNumeric = parseFloat(targetValue) || 0;
+
+                    return [prop, {
+                        start: numericValue,
+                        unit: unit,
+                        end: targetNumeric
+                    }];
+                })
+            ),
+            cleanup: () => {
+                if (gpuProps.length > 0) {
+                    el.style.willChange = '';
+                }
+            }
+        };
+    }
+    //#endregion Animation and Style Utilities - Animasyon ve Stil Yardımcıları
+
+    //#region Animation and Effects
+    dui.animate = animate;
+    /**
+          * properties: { opacity: 1, transform: ..., ... }
+          * return: Promise<Array<{ completed: boolean, cancelled: boolean }>>
+          */
+    function animate(elements, properties, duration = 400, easing = 'linear', useTransition = false) {
+        elements = checkElementToArray(elements);
+
+        const promises = [];
+        const isTransform = prop => prop.toLowerCase() === 'transform';
+
+        const registerAnimation = (fn) => {
+            animations.add(fn);
+            if (!rafID) {
+                rafID = requestAnimationFrame(_runAnimations);
+            }
+        };
+
+        elements.forEach((el, i) => {
+            const { values: styleValues, cleanup: baseCleanup } = _getStyleValues(el, properties);
+            const animationId = Symbol('animation');
+
+            const p = new Promise((resolve) => {
+                let finished = false;
+                let isCancelled = false;
+                let update = null;
+                let onTransitionEnd = null;
+                const originalTransition = el.style.transition;
+
+                const cleanup = () => {
+                    if (typeof baseCleanup === 'function') {
+                        baseCleanup();
+                    }
+                    el.style.transition = originalTransition;
+                };
+
+                const removeFromRegistry = () => {
+                    const list = animationRegistry.get(el) || [];
+                    const filtered = list.filter(a => a.id !== animationId);
+                    if (filtered.length) {
+                        animationRegistry.set(el, filtered);
+                    } else {
+                        animationRegistry.delete(el);
+                    }
+                };
+
+                /**
+                 * status: { completed: boolean, cancelled: boolean }
+                 */
+                const finish = (status) => {
+                    if (finished) return;
+                    finished = true;
+
+                    cleanup();
+                    removeFromRegistry();
+
+                    resolve(status);
+                };
+
+                const cancel = () => {
+                    if (finished) return;
+                    isCancelled = true;
+
+                    if (onTransitionEnd) {
+                        el.removeEventListener('transitionend', onTransitionEnd);
+                    }
+
+                    if (update && animations.has(update)) {
+                        animations.delete(update);
+                    }
+
+                    finish({ completed: false, cancelled: true });
+                };
+
+                // ---- CSS Transition branch ----
+                if (useTransition) {
+                    const transitionProps = Object.keys(properties)
+                        .map(p => isTransform(p) ? 'transform' : p)
+                        .map(p => `${p} ${duration}ms ${easing}`)
+                        .filter((v, i, a) => a.indexOf(v) === i);
+
+                    el.style.transition = transitionProps.join(', ');
+
+                    // force reflow
+                    void el.offsetHeight;
+
+                    Object.entries(properties).forEach(([prop, value]) => {
+                        el.style[prop] = value;
+                    });
+
+                    onTransitionEnd = (e) => {
+                        if (e.target !== el || finished) return;
+                        finish({ completed: true, cancelled: false });
+                    };
+
+                    el.addEventListener('transitionend', onTransitionEnd, { once: true });
+                }
+                // ---- requestAnimationFrame branch ----
+                else {
+                    const startTime = performance.now();
+                    const easeFn = Easings[easing] || Easings.linear;
+
+                    update = () => {
+                        if (isCancelled || finished) return;
+
+                        const elapsed = performance.now() - startTime;
+                        const progress = Math.min(elapsed / duration, 1);
+                        const t = easeFn(progress);
+
+                        let transformValue = '';
+
+                        Object.entries(styleValues).forEach(([prop, data]) => {
+                            const value = data.start + (data.end - data.start) * t;
+
+                            if (isTransform(prop)) {
+                                transformValue += `${prop}(${value}${data.unit}) `;
+                            } else {
+                                el.style[prop] = `${value}${data.unit}`;
+                            }
+                        });
+
+                        if (transformValue) {
+                            el.style.transform = transformValue.trim();
+                        }
+
+                        if (progress < 1) {
+                            registerAnimation(update);
+                        } else {
+                            finish({ completed: true, cancelled: false });
+                        }
+                    };
+
+                    registerAnimation(update);
+                }
+
+                // Registry'e ekle
+                const list = animationRegistry.get(el) || [];
+                animationRegistry.set(el, [
+                    ...list,
+                    { id: animationId, cancel }
+                ]);
+            });
+
+            promises.push(p);
+        });
+
+        // Promise<Array<Status>>
+        return Promise.all(promises);
+    }
+
+    dui.stopAnimations = stopAnimations;
+    function stopAnimations(elements) {
+        elements = checkElementToArray(elements);
+
+        elements.forEach((el, i) => {
+            const list = animationRegistry.get(el) || [];
+
+            // Bizim animasyonlarımız
+            list.forEach(({ cancel }) => {
+                try {
+                    cancel();
+                } catch (e) {
+                    console.error('Error cancelling animation:', e);
+                }
+            });
+
+            animationRegistry.delete(el);
+
+            // Native / CSS animasyonları
+            if (el.getAnimations) {
+                el.getAnimations().forEach(anim => {
+                    try {
+                        anim.cancel();
+                    } catch (e) {
+                        console.error('Error cancelling native animation:', e);
+                    }
+                });
+            }
+        });
+    }
+
+    dui.keyframe = keyframe;
+    function keyframe(elements, keyframes, options = {}) {
+        elements = checkElementToArray(elements);
+
+        const {
+            duration = 1000,
+            easing = 'ease',
+            iterations = 1,
+            direction = 'normal'
+        } = options;
+
+        elements.forEach((el, i) => {
+            const style = document.createElement('style');
+
+            const keyframeRules = Object.entries(keyframes)
+                .map(([offset, styles]) => {
+                    const cssStyles = Object.entries(styles)
+                        .map(([prop, value]) => `${prop}: ${value};`)
+                        .join('');
+                    return `${offset} { ${cssStyles} }`;
+                })
+                .join('');
+
+            const animationName = simpleStringHash(keyframeRules);
+
+            style.textContent = `
+                @keyframes ${animationName} {
+                    ${keyframeRules}
+                }
+            `;
+
+            document.head.appendChild(style);
+
+            el.style.animation = `
+                ${animationName}
+                ${duration}ms
+                ${easing}
+                ${iterations}
+                ${direction}
+            `;
+
+            let removed = false;
+            const removeStyle = () => {
+                if (removed) return;
+                removed = true;
+
+                if (document.head.contains(style)) {
+                    document.head.removeChild(style);
+                }
+                el.style.animation = '';
+            };
+
+            el.addEventListener('animationend', removeStyle, { once: true });
+            el.addEventListener('animationcancel', removeStyle, { once: true });
+        });
+    }
+
+    dui.fadeIn = fadeIn;
+    function fadeIn(elements, duration = 400, displayType = 'block') {
+        elements = checkElementToArray(elements);
+
+        // başlangıç state
+        elements.forEach((el, i) => {
+            const computedDisplay = getComputedStyle(el).display;
+
+            let targetDisplay;
+            if (el.style.display === 'none' || computedDisplay === 'none') {
+                targetDisplay = displayType;
+            } else {
+                targetDisplay = computedDisplay || displayType;
+            }
+
+            el.style.display = targetDisplay;
+            el.style.opacity = '0';
+        });
+
+        // status array döner: [{completed, cancelled}, ...]
+        return animate(elements, { opacity: 1 }, duration, 'easeOutQuad');
+    }
+
+    dui.fadeOut = fadeOut;
+    function fadeOut(elements, duration = 400) {
+        elements = checkElementToArray(elements);
+
+        return animate(elements, { opacity: 0 }, duration, 'easeInQuad')
+            .then(statuses => {
+                // Tüm elementlerde animasyon başarıyla tamamlandıysa display:none yap
+                const allCompleted = statuses.every(
+                    s => s && s.completed && !s.cancelled
+                );
+
+                if (allCompleted) {
+                    elements.forEach((el, i) => {
+                        el.style.display = 'none';
+                    });
+                }
+
+                // dışarıya da status array'i forward edelim
+                return statuses;
+            });
+    }
+
+    dui.slideDown = slideDown;
+    /**
+ * slideDown: height: 0 -> natural height
+ * duration, easing, displayType: 'block' | 'flex' | 'inline-block' vs.
+ */
+    function slideDown(elements, duration = 400, easing = 'easeOutQuad', displayType = 'block') {
+        elements = checkElementToArray(elements);
+
+        const promises = [];
+
+        elements.forEach((el, i) => {
+            const computed = getComputedStyle(el);
+
+            // Zaten görünür ve yüksekliği > 0 ise skip
+            const currentDisplay = computed.display;
+            const currentHeight = parseFloat(computed.height) || 0;
+
+            if (currentDisplay !== 'none' && currentHeight > 0) {
+                // Skip edilenler için tamamlanmış status dönelim
+                promises.push(Promise.resolve({ completed: true, cancelled: false, skipped: true }));
+                return;
+            }
+
+            promises.push(new Promise(resolve => {
+                // Başlangıç ayarları
+                const prevDisplay = currentDisplay === 'none' ? displayType : currentDisplay;
+                const prevOverflow = el.style.overflow;
+
+                el.style.display = prevDisplay;
+                el.style.overflow = 'hidden';
+
+                // Tam yüksekliği ölç
+                el.style.height = 'auto';
+                const targetHeight = el.scrollHeight; // px cinsinden
+
+                // Animasyon başlangıcı
+                el.style.height = '0px';
+
+                animate(el, { height: targetHeight }, duration, easing)
+                    .then(statuses => {
+                        const st = statuses[0] || { completed: true, cancelled: false };
+
+                        // Inline height'i temizleyip natural flow'a bırak
+                        el.style.height = '';
+                        el.style.overflow = prevOverflow;
+
+                        resolve(st);
+                    });
+            }));
+        });
+
+        return Promise.all(promises);
+    }
+
+    dui.slideUp = slideUp;
+    /**
+ * slideUp: natural height -> 0, sonra display:none
+ */
+    function slideUp(elements, duration = 400, easing = 'easeInQuad') {
+        elements = checkElementToArray(elements);
+        const promises = [];
+
+        elements.forEach((el, i) => {
+            const computed = getComputedStyle(el);
+            const currentDisplay = computed.display;
+
+            if (currentDisplay === 'none') {
+                promises.push(Promise.resolve({ completed: true, cancelled: false, skipped: true }));
+                return;
+            }
+
+            const currentHeight = parseFloat(computed.height) || 0;
+
+            if (currentHeight <= 0) {
+                // Zaten 0 gibi, direkt display:none
+                el.style.display = 'none';
+                promises.push(Promise.resolve({ completed: true, cancelled: false }));
+                return;
+            }
+
+            promises.push(new Promise(resolve => {
+                const prevOverflow = el.style.overflow;
+                el.style.overflow = 'hidden';
+
+                animate(el, { height: 0 }, duration, easing)
+                    .then(statuses => {
+                        const st = statuses[0] || { completed: true, cancelled: false };
+
+                        if (st.completed && !st.cancelled) {
+                            el.style.display = 'none';
+                        }
+
+                        // height'i temizle, overflow'u geri al
+                        el.style.height = '';
+                        el.style.overflow = prevOverflow;
+
+                        resolve(st);
+                    });
+            }));
+        });
+
+        return Promise.all(promises);
+    }
+
+    dui.slideToggle = slideToggle;
+    /**
+ * slideToggle: display durumuna göre slideDown/slideUp seçer
+ */
+    function slideToggle(elements, duration = 400, easingShow = 'easeOutQuad', easingHide = 'easeInQuad', displayType = 'block') {
+        elements = checkElementToArray(elements);
+        if (!elements.length) return Promise.resolve([]);
+
+        const first = elements[0];
+        const computed = getComputedStyle(first);
+
+        if (computed.display === 'none') {
+            return slideDown(elements, duration, easingShow, displayType);
+        } else {
+            return slideUp(elements, duration, easingHide);
+        }
+    }
+
+    dui.colorTo = colorTo;
+    /**
+ * Renk animasyonu: color / backgroundColor / borderColor gibi
+ * Burada useTransition = true kullanıyoruz ki tarayıcı renk animasyonunu kendi yapsın.
+ */
+    function colorTo(elements, property, value, duration = 400, easing = 'linear') {
+        elements = checkElementToArray(elements);
+        const props = {};
+        props[property] = value;
+        return animate(elements, props, duration, easing, true);
+    }
+
+    dui.bgColorTo = bgColorTo;
+    function bgColorTo(elements, value, duration = 400, easing = 'linear') {
+        return colorTo(elements, 'background-color', value, duration, easing);
+    }
+
+    dui.textColorTo = textColorTo;
+    function textColorTo(elements, value, duration = 400, easing = 'linear') {
+        return colorTo(elements, 'color', value, duration, easing);
+    }
+
+    dui.staggerAnimate = staggerAnimate;
+    /**
+ * staggerAnimate:
+ * elementler üzerinde index * delay gecikmeyle aynı animasyonu uygular
+ *
+ * options: {
+ *   duration: 400,
+ *   easing: 'linear',
+ *   useTransition: false,
+ *   delay: 50 // ms
+ * }
+ */
+    function staggerAnimate(elements, properties, options = {}) {
+        elements = checkElementToArray(elements);
+
+        const {
+            duration = 400,
+            easing = 'linear',
+            useTransition = false,
+            delay = 50
+        } = options;
+        const allPromises = [];
+
+        elements.forEach((el, i) => {
+            const p = new Promise(resolve => {
+                const startDelay = i * delay;
+
+                setTimeout(() => {
+                    animate(el, properties, duration, easing, useTransition)
+                        .then(statuses => {
+                            // Tek element için animate, statuses[0] yeterli
+                            resolve(statuses[0] || { completed: true, cancelled: false });
+                        });
+                }, startDelay);
+            });
+
+            allPromises.push(p);
+        });
+
+        // Promise<Array<Status>>
+        return Promise.all(allPromises);
+    }
+    //#endregion Animation and Effects
+
     //#region ---------------- Common Tool ------------------------------
     dui.addOjectHash = addOjectHash;
     function addOjectHash(obj) {
@@ -387,6 +1221,7 @@
         return nodes;
     }
     //#endregion ------------- Common Tool --------------------------------
+
     //#region ---------------- Ajax Tool ----------------------------------
     dui.ajax = ajax;
     function ajax(options) {
@@ -639,6 +1474,7 @@
     //#endregion ------------- Ajax Tool ----------------------------------
 
     //#region ------------------- SignalBasedReactiveDataLink -----------
+
     //#region ------------------- Data And UI Tool ----------------------
     dui.universalHash = universalHash;
     function universalHash(obj, options = {}) {
@@ -1582,6 +2418,7 @@
         });
     }
     //#endregion ---------------- Data And UI Tool ----------------------
+
     //#region ------------------- SignalBasedReactivity -----------------
     dui.signalScopes = new Map();
     dui.saveSignalStore = saveSignalStore;
@@ -2153,6 +2990,7 @@
         return m;
     }
     //#endregion ---------------- SignalBasedReactivity -----------------
+
     //#region ------------------- UI Data Binding -----------------------
     function elementSetAttrFormat(elm, setAttrFormat, path, val) {
         if (!elm || !setAttrFormat || setAttrFormat.trim() == "" || !path) return;
@@ -2516,6 +3354,7 @@
     }
 
     //#endregion ---------------- UI Data Binding -----------------------
+
     //#region ------------------- UI Template ---------------------------
     function uiRender({ data, bindingType = 'One-Way', beforeRender, afterRender }, options = null, dataSignalStoreKey = null) {
         let _dataSignalStoreKey = null;
@@ -2950,11 +3789,13 @@
         }
     }
     //#endregion ---------------- UI Template ---------------------------
+
     //#endregion ---------------- SignalBasedReactiveDataLink -----------
 
     //#region ------------------- Static SBRDL --------------------------
 
     //#endregion ---------------- Static SBRDL --------------------------
+
     //#region ---------------- readyCallback --------------------------
     const readyCallbackList = [];
     let isReady = false;
@@ -2992,6 +3833,7 @@
         window.addEventListener("load", runReadyCallbacks);
     }
     //#endregion ------------- readyCallback --------------------------
+
     //alt
     if (!noGlobal) {
         window.dui = dui;
