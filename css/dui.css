@@ -445,7 +445,7 @@ fieldset {
     /* padding: 0;
   margin: 0; */
     /* border: 0; */
-    border-width: var(--bs-card-border-width);
+    border-width: var(--bs-border-width);
 }
 
 legend {
@@ -453,7 +453,7 @@ legend {
   width: 100%;
   padding: 0;
   margin-bottom: 0.5rem; */
-    border-width: var(--bs-card-border-width);
+    border-width: var(--bs-border-width);
     border-style: groove;
     line-height: inherit;
     /* font-size: calc(1.275rem + 0.3vw); */
@@ -556,7 +556,7 @@ progress {
 }
 
 .mdi {
-    color: #6c757d;
+    color: #4f565c;
 }
 /*--------------------------------------------------------------
 # Main End
@@ -1238,7 +1238,7 @@ progress {
     margin-bottom: 0;
     color: var(--bs-card-cap-color);
     background-color: var(--bs-card-cap-bg);
-    border-bottom: var(--bs-card-border-width) solid var(--bs-card-border-color);
+    border-bottom: var(--bs-border-width) solid var(--bs-border-color-translucent);
 }
 
 .card.blured-card .card-header {
@@ -1249,7 +1249,7 @@ progress {
     padding: var(--bs-card-cap-padding-y) var(--bs-card-cap-padding-x);
     color: var(--bs-card-cap-color);
     background-color: var(--bs-card-cap-bg);
-    border-top: var(--bs-card-border-width) solid var(--bs-card-border-color);
+    border-top: var(--bs-border-width) solid var(--bs-border-color-translucent);
 }
 
 .card-group > .card {
@@ -1332,7 +1332,7 @@ progress {
     --bs-table-hover-color: var(--bs-emphasis-color);
     --bs-table-hover-bg: rgba(var(--bs-emphasis-color-rgb), 0.075);
     border-color: var(--bs-table-border-color);
-    border: var(--bs-card-border-width) solid var(--bs-card-border-color);
+    border: var(--bs-border-width) solid var(--bs-border-color-translucent);
     width: 100%;
     max-width: 100%;
     margin-bottom: 1rem;
@@ -1471,7 +1471,7 @@ progress {
     text-decoration: none;
     background-color: #fff;
     border: 1px solid #cfd7de;
-    border: var(--bs-card-border-width) solid var(--bs-card-border-color);
+    border: var(--bs-border-width) solid var(--bs-border-color-translucent);
 }
 
     .page-link:hover {
@@ -1723,7 +1723,7 @@ progress {
     background-color: var(--bs-body-bg);
     background-clip: padding-box;
     /*border: var(--bs-border-width) solid var(--bs-border-color);*/
-    border: var(--bs-card-border-width) solid var(--bs-card-border-color);
+    border: var(--bs-border-width) solid var(--bs-border-color-translucent);
     border-radius: var(--bs-border-radius);
     transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
@@ -2049,7 +2049,7 @@ select.form-control:-moz-focusring,
 }
 
 .btn {
-    border: var(--bs-card-border-width) solid var(--bs-card-border-color);
+    border: var(--bs-border-width) solid var(--bs-border-color-translucent);
     /*Blured*/
     -webkit-backdrop-filter: blur(5px) saturate(180%);
     box-shadow: inset .5px 1px 1px 0 hsla(0, 0%, 100%, .125);
