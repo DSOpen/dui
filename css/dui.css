@@ -1,3 +1,4 @@
+/*VoidT*/
 @import url(icons/material-design-iconic-font/css/materialdesignicons.min.css);
 
 :root,
@@ -24,10 +25,11 @@
     --bs-text-muted: #6c757d;
     --bs-text-muted-light: #e9ecef;
     /*--bs-body-color: #212529;*/
-    --bs-body-color: #13142f;
+    /*--bs-body-color: #13142f;*/
+    --bs-body-color: #3b3e41;
     --bs-body-bg: #fff;
     --bs-body-color-rgb: 33, 37, 41;
-    --bs-emphasis-color: #000;
+    --bs-emphasis-color: #484C50;
     --bs-emphasis-color-rgb: 0, 0, 0;
     --bs-card-title-color: #012970;
     --bs-border-width: 1px;
@@ -44,6 +46,7 @@
 
 html {
     box-sizing: border-box;
+    color: #484C50;
 }
 
 /*******************/
@@ -86,9 +89,9 @@ body {
         /* background-color: #35b653; */
         /* background-color: #3F51B5; */
         /* background-color: #6c757d; */
-        /* background-color: #5b78ab; */
-        /* background-color: #aba4a473; */
-        background-image: var(--bs-blured-back);
+        /*background-color: #5b78ab;*/
+        /*background-color: #aba4a473;*/
+        /*background-image: var(--bs-blured-back);*/
         background-repeat: no-repeat;
         background-size: cover;
         background-attachment: fixed;
@@ -96,7 +99,7 @@ body {
         /*opacity: .5;*/
         width: 100%;
         height: 100%;
-        filter: brightness(0.5)
+        /*filter: brightness(0.5)*/
     }
 
 hr {
@@ -449,10 +452,9 @@ fieldset {
 }
 
 legend {
-    /* float: left;
-  width: 100%;
-  padding: 0;
-  margin-bottom: 0.5rem; */
+    font-size: 1.3rem;
+    border-radius: 5px;
+    padding: 0.3rem .5rem;
     border-width: var(--bs-border-width);
     border-style: groove;
     line-height: inherit;
@@ -461,7 +463,7 @@ legend {
 
 @media (min-width: 1200px) {
     legend {
-        font-size: 1.5rem;
+        /*font-size: 1.5rem;*/
     }
 }
 
@@ -811,7 +813,11 @@ progress {
     background-size: 100% 100%;
 }
 
-
+.dropdown.card,
+.dropdown.blured-card {
+    min-width: 15rem;
+    margin-right: 0px;
+}
 /*--------------------------------------------------------------
 # Navbar End
 --------------------------------------------------------------*/
@@ -1451,6 +1457,14 @@ progress {
 /*--------------------------------------------------------------
 # Table Paging Begin
 --------------------------------------------------------------*/
+.pagination-nav {
+    display: flex;
+}
+
+    .pagination-nav > * {
+        align-self: center;
+    }
+
 .pagination {
     display: flex;
     padding-left: 0;
@@ -1462,7 +1476,7 @@ progress {
 
 .page-link {
     position: relative;
-    display: block;
+    /*display: block;*/
     padding: 0.2rem 0.7rem;
     margin-left: -1px;
     line-height: 1.25;
@@ -1494,6 +1508,10 @@ progress {
 
     .page-link:not(:disabled):not(.disabled) {
         cursor: pointer;
+    }
+
+    .page-link:hover i {
+        color: white;
     }
 
 .page-item:first-child .page-link {
@@ -1787,7 +1805,7 @@ a.form-control {
     color: var(--bs-body-color);
     background-color: var(--bs-tertiary-bg);
     pointer-events: none;
-/*    border-color: inherit;
+    /*    border-color: inherit;
     border-style: solid;
     border-width: 0;
     border-inline-end-width: var(--bs-border-width);
@@ -1805,7 +1823,7 @@ a.form-control {
     color: var(--bs-body-color);
     background-color: var(--bs-tertiary-bg);
     pointer-events: none;
-/*    border-color: inherit;
+    /*    border-color: inherit;
     border-style: solid;
     border-width: 0;
     border-inline-end-width: var(--bs-border-width);
@@ -1929,10 +1947,9 @@ select.form-control:-moz-focusring,
 .form-check-input {
     --bs-form-check-bg: var(--bs-body-bg);
     flex-shrink: 0;
-    width: 1em;
-    height: 1em;
-    margin-top: 0.25em;
-    vertical-align: top;
+    width: 1.3rem;
+    height: 1.3rem;
+    vertical-align: middle;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -1941,7 +1958,6 @@ select.form-control:-moz-focusring,
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
-    /*border: var(--bs-border-width) solid var(--bs-border-color);*/
     -webkit-print-color-adjust: exact;
     color-adjust: exact;
     print-color-adjust: exact;
@@ -2102,6 +2118,8 @@ progress {
     transition: var(--bs-progress-bar-transition);
 }
 
+
+
 @media (prefers-reduced-motion: reduce) {
     .progress-bar {
         transition: none;
@@ -2111,6 +2129,50 @@ progress {
 /*--------------------------------------------------------------
 # Html Control Class End
 --------------------------------------------------------------*/
+.bg-primary {
+    background-color: #7460ee !important
+}
+
+.bg-secondary {
+    background-color: #6c757d !important
+}
+
+.bg-info {
+    background-color: #0d6efd !important;
+}
+
+.bg-success {
+    background-color: #5ac146 !important;
+}
+
+.bg-purple {
+    background-color: #8b5edd !important;
+}
+
+.bg-danger {
+    background-color: #fa5838 !important;
+}
+
+.bg-warning {
+    background-color: #ffbc34 !important
+}
+
+.bg-light {
+    background-color: #f6f8f9 !important
+}
+
+.bg-cyan {
+    background-color: #4fc3f7 !important
+}
+
+.bg-orange {
+    background-color: #fb8c00 !important
+}
+
+.font-light {
+    font-weight: 300;
+}
+
 .justify-content-start {
     justify-content: flex-start !important;
 }
@@ -2197,4 +2259,12 @@ progress {
 
 .align-self-stretch {
     align-self: stretch !important;
+}
+
+.text-left {
+    text-align: left !important;
+}
+
+.text-right {
+    text-align: right !important;
 }
