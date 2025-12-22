@@ -195,6 +195,9 @@
         },
         //#endregion Class and Style Utilities - Sınıf ve Görünürlük Yardımcıları
 
+        ajaxSubmit(options = {}) {
+            return ajaxSubmit(this.elements, options);
+        },
         //#region DOM Manipulation - DOM Üzerinde Değişiklik Yapma
         append(content) {
             append(this.elements, content);
@@ -1439,9 +1442,9 @@
     }
 
     dui.ajaxSubmit = ajaxSubmit;
-    function ajaxSubmit(options = {}) {
-        return this.each(function () {
-            const form = this;
+    function ajaxSubmit(elements, options = {}) {
+        return elements.forEach((el, i) => {
+            const form = el;
 
             if (form.nodeName !== "FORM") return;
 
